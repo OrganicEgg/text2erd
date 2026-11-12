@@ -1,0 +1,215 @@
+import type { Table, Relationship, DiagramData, Column } from '../types/erd';
+
+export function parseDraftTextClient(text: string): DiagramData {
+  const tables: Record<string, Table> = {};
+  const relationships: Relationship[] = [];
+  let currentTable: string | null = null;
+
+  const lines = text.trim().split('\n');
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#') || line.startsWith('//') || line.startsWith('--')) {
+      continue;
+    }
+
+    // Check standalone relationship: e.g. "posts.user_id -> users.id"
+    const relMatch = line.match(
+      /^([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)\s*(?:->|-<|--|references)\s*([a-zA-Z0-9_]+)(?:\.|\()([a-zA-Z0-9_]+)\)?$/i
+    );
+    if (relMatch) {
+      const [, srcTbl, srcCol, tgtTbl, tgtCol] = relMatch;
+      relationships.push({
+        id: `rel_${srcTbl}_${srcCol}_${tgtTbl}_${tgtCol}`,
+        source_table: srcTbl,
+        source_column: srcCol,
+        target_table: tgtTbl,
+        target_column: tgtCol,
+        type: 'one_to_many',
+      });
+      continue;
+    }
+
+    const tableMatch = line.match(/^(?:table\s+)?([a-zA-Z0-9_]+)\s*[:{]?$/i);
+    const isIndented = rawLine.length - rawLine.trimStart().length > 0;
+    const tokens = line.split(/\s+/);
+
+    if (
+      (tableMatch && (!isIndented || line.toLowerCase().startsWith('table '))) ||
+      (tokens.length === 1 && !line.endsWith('}'))
+    ) {
+      const tblName = tableMatch ? tableMatch[1] : tokens[0].replace(/[:{]/g, '');
+      if (!['}', '{'].includes(tblName.toLowerCase())) {
+        currentTable = tblName;
+        if (!tables[currentTable]) {
+          tables[currentTable] = {
+            id: currentTable,
+            name: currentTable,
+            columns: [],
+          };
+        }
+        continue;
+      }
+    }
+
+    if (line === '}') {
+      currentTable = null;
+      continue;
+    }
+
+    if (currentTable) {
+      let workingLine = line;
+      let inlineRel: [string, string] | null = null;
+
+      const inlineRelMatch = workingLine.match(
+        /(?:->|-<|references)\s*([a-zA-Z0-9_]+)(?:\.|\()([a-zA-Z0-9_]+)\)?/i
+      );
+      if (inlineRelMatch) {
+        inlineRel = [inlineRelMatch[1], inlineRelMatch[2]];
+        workingLine =
+          workingLine.slice(0, inlineRelMatch.index) +
+          ' ' +
+          workingLine.slice(inlineRelMatch.index! + inlineRelMatch[0].length);
+        workingLine = workingLine.trim();
+      }
+
+      const parts = workingLine.split(/\s+/);
+      if (!parts.length || !parts[0]) continue;
+
+      const colName = parts[0].replace(/[`"']/g, '');
+      let colType = 'varchar(255)';
+      let isPk = false;
+      let isUnique = false;
+      let isNullable = true;
+      const isFk = Boolean(inlineRel);
+
+      let rest = parts.slice(1).join(' ').toLowerCase();
+
+      if (/\b(pk|primary\s+key)\b/i.test(rest)) {
+        isPk = true;
+        isNullable = false;
+        rest = rest.replace(/\b(pk|primary\s+key)\b/gi, '').trim();
+      }
+
+      if (/\bunique\b/i.test(rest)) {
+        isUnique = true;
+        rest = rest.replace(/\bunique\b/gi, '').trim();
+      }
+
+      if (/\bnot\s+null\b/i.test(rest)) {
+        isNullable = false;
+        rest = rest.replace(/\bnot\s+null\b/gi, '').trim();
+      } else if (/\bnull\b/i.test(rest)) {
+        isNullable = true;
+        rest = rest.replace(/\bnull\b/gi, '').trim();
+      }
+
+      const typeParts = rest.split(/\s+/).filter(Boolean);
+      if (typeParts.length > 0) {
+        colType = typeParts[0];
+      } else if (parts.length > 1 && !isPk && !isUnique && isNullable) {
+        colType = parts[1];
+      }
+
+      const colData: Column = {
+        name: colName,
+        type: colType,
+        is_pk: isPk,
+        is_unique: isUnique,
+        is_nullable: isNullable,
+        is_fk: isFk,
+      };
+
+      tables[currentTable].columns.push(colData);
+
+      if (inlineRel) {
+        const [tgtTbl, tgtCol] = inlineRel;
+        relationships.push({
+          id: `rel_${currentTable}_${colName}_${tgtTbl}_${tgtCol}`,
+          source_table: currentTable,
+          source_column: colName,
+          target_table: tgtTbl,
+          target_column: tgtCol,
+          type: 'one_to_many',
+        });
+      }
+    }
+  }
+
+  // Update is_fk flag on columns
+  for (const rel of relationships) {
+    const sTbl = tables[rel.source_table];
+    if (sTbl) {
+      const col = sTbl.columns.find((c) => c.name === rel.source_column);
+      if (col) col.is_fk = true;
+    }
+  }
+
+  return {
+    tables: Object.values(tables),
+    relationships,
+  };
+}
+
+export function generateSqlDdlClient(
+  tables: Table[],
+  relationships: Relationship[],
+  dialect: 'postgres' | 'mysql' | 'sqlite' = 'postgres'
+): string {
+  const lines: string[] = [];
+  const quote = dialect === 'mysql' ? '`' : '"';
+
+  lines.push(`-- =============================================`);
+  lines.push(`-- Database Schema (${dialect.toUpperCase()} DDL)`);
+  lines.push(`-- Generated by Text2ERD`);
+  lines.push(`-- =============================================\n`);
+
+  const relsBySrc: Record<string, Relationship[]> = {};
+  for (const rel of relationships) {
+    if (!relsBySrc[rel.source_table]) relsBySrc[rel.source_table] = [];
+    relsBySrc[rel.source_table].push(rel);
+  }
+
+  for (const tbl of tables) {
+    lines.push(`CREATE TABLE ${quote}${tbl.name}${quote} (`);
+    const colDefs: string[] = [];
+    const pks: string[] = [];
+
+    for (const col of tbl.columns) {
+      const colModifiers: string[] = [];
+      if (col.is_pk) pks.push(col.name);
+      if (!col.is_nullable && !col.is_pk) colModifiers.push('NOT NULL');
+      if (col.is_unique) colModifiers.push('UNIQUE');
+
+      const modStr = colModifiers.length ? ` ${colModifiers.join(' ')}` : '';
+      colDefs.push(`    ${quote}${col.name}${quote} ${col.type.toUpperCase()}${modStr}`);
+    }
+
+    if (pks.length) {
+      const pkList = pks.map((p) => `${quote}${p}${quote}`).join(', ');
+      colDefs.push(`    PRIMARY KEY (${pkList})`);
+    }
+
+    if (dialect === 'sqlite') {
+      for (const rel of relsBySrc[tbl.name] || []) {
+        colDefs.push(
+          `    FOREIGN KEY (${quote}${rel.source_column}${quote}) REFERENCES ${quote}${rel.target_table}${quote}(${quote}${rel.target_column}${quote}) ON DELETE CASCADE`
+        );
+      }
+    }
+
+    lines.push(colDefs.join(',\n'));
+    lines.push(');\n');
+  }
+
+  if (dialect !== 'sqlite') {
+    for (const rel of relationships) {
+      const constraintName = `fk_${rel.source_table}_${rel.source_column}`;
+      lines.push(
+        `ALTER TABLE ${quote}${rel.source_table}${quote} ADD CONSTRAINT ${quote}${constraintName}${quote} FOREIGN KEY (${quote}${rel.source_column}${quote}) REFERENCES ${quote}${rel.target_table}${quote}(${quote}${rel.target_column}${quote}) ON DELETE CASCADE;`
+      );
+    }
+  }
+
+  return lines.join('\n').trim() + '\n';
+}

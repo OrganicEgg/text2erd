@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Table, Relationship } from '../types/erd';
 import { X, Copy, Check, Download, Database } from 'lucide-react';
+import { generateSqlDdlClient } from '../utils/clientParser';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -34,15 +35,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         if (resp.ok) {
           const data = await resp.json();
           setSqlContent(data.sql);
-        } else {
-          setSqlContent('-- Failed to export SQL from server');
+          setLoading(false);
+          return;
         }
       } catch (err) {
-        console.error(err);
-        setSqlContent('-- Network error while generating SQL');
-      } finally {
-        setLoading(false);
+        console.warn('Backend export unavailable, using client fallback', err);
       }
+      // Client-side SQL generation fallback for Vercel/serverless
+      const clientSql = generateSqlDdlClient(tables, relationships, dialect);
+      setSqlContent(clientSql);
+      setLoading(false);
     };
 
     fetchSql();

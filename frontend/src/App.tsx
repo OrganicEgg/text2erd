@@ -20,6 +20,7 @@ import { LandingPage } from './components/LandingPage';
 import type { Table, Relationship, DiagramData, TableNodeData } from './types/erd';
 import { getLayoutedElements } from './utils/layout';
 import { TEMPLATES } from './utils/templates';
+import { parseDraftTextClient } from './utils/clientParser';
 
 const DEFAULT_DRAFT = TEMPLATES[0].draft;
 
@@ -134,7 +135,7 @@ export function App() {
     [buildGraphElements, setNodes, setEdges]
   );
 
-  // Run Draft: send to /api/parse-draft/
+  // Run Draft: send to /api/parse-draft/ with client fallback
   const handleRunDraft = useCallback(
     async (textOverride?: string) => {
       const textToParse = textOverride ?? draftText;
@@ -149,12 +150,19 @@ export function App() {
         if (resp.ok) {
           const data: DiagramData = await resp.json();
           applyDiagramData(data);
-        } else {
-          alert('Could not parse draft text. Please check syntax.');
+          setLoading(false);
+          return;
         }
       } catch (err) {
-        console.error(err);
-        alert('Network error connecting to backend.');
+        console.warn('Backend unavailable, falling back to client parser', err);
+      }
+      // Fallback: client-side parser for Vercel / serverless deployments
+      try {
+        const clientData = parseDraftTextClient(textToParse);
+        applyDiagramData(clientData);
+      } catch (parseErr) {
+        console.error('Failed to parse draft client-side', parseErr);
+        alert('Could not parse draft text. Please check syntax.');
       } finally {
         setLoading(false);
       }
