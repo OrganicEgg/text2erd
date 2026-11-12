@@ -2,11 +2,13 @@
 
 > **Draft database tables in plain text. Watch them turn into an interactive, draggable Entity-Relationship Diagram. Link relationships with a click, export clean SQL, and walk away. No accounts, no paywalls, zero friction.**
 
+[![Live Demo](https://img.shields.io/badge/Demo-text2erd.vercel.app-emerald.svg)](https://text2erd.vercel.app)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![React 19](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38bdf8.svg)](https://tailwindcss.com/)
-[![Django DRF](https://img.shields.io/badge/Django-REST%20Framework-092e20.svg)](https://www.django-rest-framework.org/)
 [![Buy Me A Coffee](https://img.shields.io/badge/Donate-Buy%20Me%20A%20Coffee-yellow.svg)](https://www.buymeacoffee.com/)
+
+**🌐 Live Web App & Marketing Page:** [https://text2erd.vercel.app](https://text2erd.vercel.app)
 
 ---
 
