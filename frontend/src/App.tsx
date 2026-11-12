@@ -16,6 +16,7 @@ import { Navbar } from './components/Navbar';
 import { NotepadEditor } from './components/NotepadEditor';
 import { ExportModal } from './components/ExportModal';
 import { ImportModal } from './components/ImportModal';
+import { LandingPage } from './components/LandingPage';
 import type { Table, Relationship, DiagramData, TableNodeData } from './types/erd';
 import { getLayoutedElements } from './utils/layout';
 import { TEMPLATES } from './utils/templates';
@@ -23,6 +24,9 @@ import { TEMPLATES } from './utils/templates';
 const DEFAULT_DRAFT = TEMPLATES[0].draft;
 
 export function App() {
+  const [currentView, setCurrentView] = useState<'landing' | 'app'>(() =>
+    window.location.hash === '#app' ? 'app' : 'landing'
+  );
   const [draftText, setDraftText] = useState(DEFAULT_DRAFT);
   const [tables, setTables] = useState<Table[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
@@ -131,32 +135,54 @@ export function App() {
   );
 
   // Run Draft: send to /api/parse-draft/
-  const handleRunDraft = useCallback(async () => {
-    if (!draftText.trim()) return;
-    setLoading(true);
-    try {
-      const resp = await fetch('/api/parse-draft/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: draftText }),
-      });
-      if (resp.ok) {
-        const data: DiagramData = await resp.json();
-        applyDiagramData(data);
-      } else {
-        alert('Could not parse draft text. Please check syntax.');
+  const handleRunDraft = useCallback(
+    async (textOverride?: string) => {
+      const textToParse = textOverride ?? draftText;
+      if (!textToParse.trim()) return;
+      setLoading(true);
+      try {
+        const resp = await fetch('/api/parse-draft/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: textToParse }),
+        });
+        if (resp.ok) {
+          const data: DiagramData = await resp.json();
+          applyDiagramData(data);
+        } else {
+          alert('Could not parse draft text. Please check syntax.');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Network error connecting to backend.');
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error(err);
-      alert('Network error connecting to backend.');
-    } finally {
-      setLoading(false);
-    }
-  }, [draftText, applyDiagramData]);
+    },
+    [draftText, applyDiagramData]
+  );
 
   // Initial load: parse default template
   useEffect(() => {
     handleRunDraft();
+  }, []);
+
+  // Handle Launch App from Landing Page
+  const handleLaunchApp = useCallback(
+    (initialDraft?: string) => {
+      if (initialDraft && initialDraft !== draftText) {
+        setDraftText(initialDraft);
+        handleRunDraft(initialDraft);
+      }
+      setCurrentView('app');
+      window.location.hash = '#app';
+    },
+    [draftText, handleRunDraft]
+  );
+
+  const handleNavigateHome = useCallback(() => {
+    setCurrentView('landing');
+    window.location.hash = '';
   }, []);
 
   // Connection created by dragging handle to handle
@@ -278,6 +304,12 @@ export function App() {
     [applyDiagramData]
   );
 
+  // If in landing mode, show promotional LandingPage
+  if (currentView === 'landing') {
+    return <LandingPage onLaunchApp={handleLaunchApp} />;
+  }
+
+  // Otherwise, render full Studio Visualizer
   return (
     <div className="flex h-screen w-screen flex-col bg-slate-950 text-slate-100 overflow-hidden font-sans">
       {/* Navbar */}
@@ -290,6 +322,7 @@ export function App() {
         onToggleEditor={() => setIsEditorOpen(!isEditorOpen)}
         tableCount={tables.length}
         relCount={relationships.length}
+        onNavigateHome={handleNavigateHome}
       />
 
       {/* Main Workspace Area */}
@@ -300,7 +333,7 @@ export function App() {
             <NotepadEditor
               draftText={draftText}
               onChangeDraft={setDraftText}
-              onRunDraft={handleRunDraft}
+              onRunDraft={() => handleRunDraft()}
               onReset={handleReset}
               loading={loading}
             />

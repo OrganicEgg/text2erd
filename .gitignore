@@ -30,3 +30,7 @@ upload/
 .bashrc
 .bash_logout
 .gemini
+.local/
+.gitconfig
+image.png
+text2erd.zip
