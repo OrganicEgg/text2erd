@@ -34,3 +34,4 @@ upload/
 .gitconfig
 image.png
 text2erd.zip
+.cache/
