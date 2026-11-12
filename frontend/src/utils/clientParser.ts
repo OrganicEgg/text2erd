@@ -213,3 +213,131 @@ export function generateSqlDdlClient(
 
   return lines.join('\n').trim() + '\n';
 }
+
+export function parseSqlDdlClient(sql: string): DiagramData {
+  const tables: Record<string, Table> = {};
+  const relationships: Relationship[] = [];
+
+  // Match CREATE TABLE [IF NOT EXISTS] table_name ( ... )
+  const createTableRegex = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:[`"']?([a-zA-Z0-9_]+)[`"']?\.)?[`"']?([a-zA-Z0-9_]+)[`"']?\s*\(([\s\S]*?)\);/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = createTableRegex.exec(sql)) !== null) {
+    const tableName = match[2] || match[1];
+    const body = match[3];
+
+    const currentTable: Table = {
+      id: tableName,
+      name: tableName,
+      columns: [],
+    };
+
+    // Split column definitions by comma not inside parentheses
+    const lines = body.split(/,(?![^(]*\))/);
+
+    for (const rawItem of lines) {
+      const item = rawItem.trim();
+      if (!item) continue;
+
+      // Table-level PRIMARY KEY (col1, col2)
+      const pkMatch = item.match(/^PRIMARY\s+KEY\s*\(([^)]+)\)/i);
+      if (pkMatch) {
+        const pkCols = pkMatch[1].split(',').map((c) => c.replace(/[`"'\s]/g, ''));
+        for (const pkCol of pkCols) {
+          const col = currentTable.columns.find((c) => c.name === pkCol);
+          if (col) {
+            col.is_pk = true;
+            col.is_nullable = false;
+          }
+        }
+        continue;
+      }
+
+      // Table-level FOREIGN KEY (col) REFERENCES other_table(other_col)
+      const fkMatch = item.match(
+        /^(?:CONSTRAINT\s+[`"']?[a-zA-Z0-9_]+[`"']?\s+)?FOREIGN\s+KEY\s*\([`"']?([a-zA-Z0-9_]+)[`"']?\)\s*REFERENCES\s+[`"']?([a-zA-Z0-9_]+)[`"']?\s*\([`"']?([a-zA-Z0-9_]+)[`"']?\)/i
+      );
+      if (fkMatch) {
+        const [, srcCol, tgtTbl, tgtCol] = fkMatch;
+        const existingCol = currentTable.columns.find((c) => c.name === srcCol);
+        if (existingCol) existingCol.is_fk = true;
+
+        relationships.push({
+          id: `rel_${tableName}_${srcCol}_${tgtTbl}_${tgtCol}`,
+          source_table: tableName,
+          source_column: srcCol,
+          target_table: tgtTbl,
+          target_column: tgtCol,
+          type: 'one_to_many',
+        });
+        continue;
+      }
+
+      // Column definition: col_name type [modifiers]
+      const colTokens = item.split(/\s+/);
+      if (colTokens.length < 2) continue;
+
+      const colName = colTokens[0].replace(/[`"']/g, '');
+      const colType = colTokens[1].toLowerCase();
+      const rest = item.toLowerCase();
+
+      const isPk = /\b(primary\s+key)\b/i.test(rest);
+      const isUnique = /\bunique\b/i.test(rest);
+      const isNullable = !/\bnot\s+null\b/i.test(rest) && !isPk;
+
+      // Check inline references
+      const inlineFkMatch = item.match(
+        /REFERENCES\s+[`"']?([a-zA-Z0-9_]+)[`"']?\s*\([`"']?([a-zA-Z0-9_]+)[`"']?\)/i
+      );
+      const isFk = Boolean(inlineFkMatch);
+
+      currentTable.columns.push({
+        name: colName,
+        type: colType,
+        is_pk: isPk,
+        is_unique: isUnique,
+        is_nullable: isNullable,
+        is_fk: isFk,
+      });
+
+      if (inlineFkMatch) {
+        const [, tgtTbl, tgtCol] = inlineFkMatch;
+        relationships.push({
+          id: `rel_${tableName}_${colName}_${tgtTbl}_${tgtCol}`,
+          source_table: tableName,
+          source_column: colName,
+          target_table: tgtTbl,
+          target_column: tgtCol,
+          type: 'one_to_many',
+        });
+      }
+    }
+
+    tables[tableName] = currentTable;
+  }
+
+  // Also parse standalone ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY ...
+  const alterFkRegex = /ALTER\s+TABLE\s+[`"']?([a-zA-Z0-9_]+)[`"']?\s+ADD\s+(?:CONSTRAINT\s+[`"']?[a-zA-Z0-9_]+[`"']?\s+)?FOREIGN\s+KEY\s*\([`"']?([a-zA-Z0-9_]+)[`"']?\)\s*REFERENCES\s+[`"']?([a-zA-Z0-9_]+)[`"']?\s*\([`"']?([a-zA-Z0-9_]+)[`"']?\)/gi;
+  let alterMatch: RegExpExecArray | null;
+
+  while ((alterMatch = alterFkRegex.exec(sql)) !== null) {
+    const [, srcTbl, srcCol, tgtTbl, tgtCol] = alterMatch;
+    if (tables[srcTbl]) {
+      const col = tables[srcTbl].columns.find((c) => c.name === srcCol);
+      if (col) col.is_fk = true;
+    }
+    relationships.push({
+      id: `rel_${srcTbl}_${srcCol}_${tgtTbl}_${tgtCol}`,
+      source_table: srcTbl,
+      source_column: srcCol,
+      target_table: tgtTbl,
+      target_column: tgtCol,
+      type: 'one_to_many',
+    });
+  }
+
+  return {
+    tables: Object.values(tables),
+    relationships,
+  };
+}

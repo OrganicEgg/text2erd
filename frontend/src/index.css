@@ -1,34 +1,42 @@
 @import "tailwindcss";
 @import "@xyflow/react/dist/style.css";
 
-html, body, #root {
-  height: 100%;
+html {
+  scroll-behavior: smooth;
+}
+
+html, body {
+  min-height: 100%;
   width: 100%;
   margin: 0;
   padding: 0;
-  overflow: hidden;
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background-color: #0f172a;
-  color: #f8fafc;
+  background-color: #f8fafc;
+  color: #1e293b;
 }
 
-/* Custom scrollbars */
+#root {
+  min-height: 100%;
+  width: 100%;
+}
+
+/* Custom scrollbars - Light Theme */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
-  background: #1e293b;
+  background: #f1f5f9;
 }
 ::-webkit-scrollbar-thumb {
-  background: #475569;
-  border-radius: 3px;
+  background: #cbd5e1;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+  background: #94a3b8;
 }
 
-/* React Flow custom styling overrides */
+/* React Flow light theme styling */
 .react-flow__attribution {
   display: none !important;
 }
@@ -39,4 +47,37 @@ html, body, #root {
 
 .react-flow__node:active {
   cursor: grabbing;
+}
+
+.react-flow__background {
+  background-color: #f8fafc !important;
+}
+
+.react-flow__controls {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06) !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background: #ffffff !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: #475569 !important;
+  fill: #475569 !important;
+  transition: all 0.15s ease-in-out;
+}
+
+.react-flow__controls-button:hover {
+  background: #f0fdf4 !important;
+  color: #16a34a !important;
+  fill: #16a34a !important;
+}
+
+.react-flow__minimap {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06) !important;
 }

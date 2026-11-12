@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import type { Table, Relationship } from '../types/erd';
-import { X, Copy, Check, Download, Database } from 'lucide-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faDatabase,
+  faCopy,
+  faCheck,
+  faDownload,
+  faXmark,
+} from '@fortawesome/free-solid-svg-icons';
 import { generateSqlDdlClient } from '../utils/clientParser';
 
 interface ExportModalProps {
@@ -69,39 +76,39 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="relative flex w-full max-w-3xl flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl max-h-[85vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+      <div className="relative flex w-full max-w-3xl flex-col rounded-2xl border border-slate-200 bg-white shadow-xl max-h-[85vh]">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-lg bg-indigo-500/10 p-2 text-indigo-400">
-              <Database className="h-5 w-5" />
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-50 text-green-700">
+              <FontAwesomeIcon icon={faDatabase} className="text-sm" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-slate-100">Export SQL Schema</h3>
-              <p className="text-xs text-slate-400">Select dialect and download or copy DDL</p>
+              <h3 className="text-base font-semibold text-slate-900">Export SQL Schema</h3>
+              <p className="text-xs text-slate-500">Select dialect and download or copy DDL</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+            className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer transition-colors"
           >
-            <X className="h-5 w-5" />
+            <FontAwesomeIcon icon={faXmark} className="text-sm" />
           </button>
         </div>
 
         {/* Dialect Switcher */}
-        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/40 px-6 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-6 py-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-slate-400">Dialect:</span>
+            <span className="text-xs font-medium text-slate-600">Dialect:</span>
             {(['postgres', 'mysql', 'sqlite'] as const).map((d) => (
               <button
                 key={d}
                 onClick={() => setDialect(d)}
-                className={`rounded-lg px-3 py-1 text-xs font-medium capitalize transition-colors ${
+                className={`rounded-lg px-3 py-1 text-xs font-semibold capitalize transition-colors cursor-pointer ${
                   dialect === d
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                    ? 'bg-green-600 text-white shadow-xs'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
                 {d === 'postgres' ? 'PostgreSQL' : d === 'mysql' ? 'MySQL' : 'SQLite'}
@@ -112,38 +119,32 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopy}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer shadow-xs"
             >
-              {copied ? (
-                <>
-                  <Check className="h-3.5 w-3.5 text-emerald-400" />
-                  <span className="text-emerald-400">Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3.5 w-3.5" />
-                  <span>Copy SQL</span>
-                </>
-              )}
+              <FontAwesomeIcon
+                icon={copied ? faCheck : faCopy}
+                className={copied ? 'text-green-600 text-xs' : 'text-slate-500 text-xs'}
+              />
+              <span>{copied ? 'Copied!' : 'Copy SQL'}</span>
             </button>
             <button
               onClick={handleDownload}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-green-700 transition-colors cursor-pointer shadow-xs"
             >
-              <Download className="h-3.5 w-3.5" />
+              <FontAwesomeIcon icon={faDownload} className="text-xs" />
               <span>Download .sql</span>
             </button>
           </div>
         </div>
 
         {/* SQL Preview Body */}
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto p-6 bg-slate-50/50">
           {loading ? (
-            <div className="flex h-64 items-center justify-center text-sm text-slate-400">
+            <div className="flex h-64 items-center justify-center text-sm text-slate-500">
               Generating SQL...
             </div>
           ) : (
-            <pre className="rounded-xl border border-slate-800 bg-slate-950 p-4 font-mono text-xs text-slate-200 overflow-x-auto selection:bg-indigo-500/30">
+            <pre className="rounded-xl border border-slate-200 bg-white p-4 font-mono text-xs text-slate-800 overflow-x-auto shadow-2xs leading-relaxed">
               <code>{sqlContent}</code>
             </pre>
           )}

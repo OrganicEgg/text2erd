@@ -100,16 +100,16 @@ export function App() {
           targetHandle: `${targetCol}-target`,
           animated: true,
           type: 'smoothstep',
-          style: { stroke: '#38bdf8', strokeWidth: 2 },
+          style: { stroke: '#16a34a', strokeWidth: 2 },
           markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 14,
             height: 14,
-            color: '#38bdf8',
+            color: '#16a34a',
           },
           label: `${rel.source_table}.${sourceCol} ➔ ${rel.target_table}.${targetCol}`,
-          labelStyle: { fill: '#94a3b8', fontSize: 10, fontFamily: 'monospace' },
-          labelBgStyle: { fill: '#0f172a', fillOpacity: 0.8 },
+          labelStyle: { fill: '#166534', fontSize: 10, fontFamily: 'monospace', fontWeight: 600 },
+          labelBgStyle: { fill: '#ffffff', fillOpacity: 0.95 },
           labelBgPadding: [4, 2] as [number, number],
           labelBgBorderRadius: 4,
         };
@@ -219,16 +219,16 @@ export function App() {
         target: connection.target,
         animated: true,
         type: 'smoothstep',
-        style: { stroke: '#38bdf8', strokeWidth: 2 },
+        style: { stroke: '#16a34a', strokeWidth: 2 },
         markerEnd: {
           type: MarkerType.ArrowClosed,
           width: 14,
           height: 14,
-          color: '#38bdf8',
+          color: '#16a34a',
         },
         label: `${connection.source}.${sourceCol} ➔ ${connection.target}.${targetCol}`,
-        labelStyle: { fill: '#94a3b8', fontSize: 10, fontFamily: 'monospace' },
-        labelBgStyle: { fill: '#0f172a', fillOpacity: 0.8 },
+        labelStyle: { fill: '#166534', fontSize: 10, fontFamily: 'monospace', fontWeight: 600 },
+        labelBgStyle: { fill: '#ffffff', fillOpacity: 0.95 },
         labelBgPadding: [4, 2] as [number, number],
         labelBgBorderRadius: 4,
       };
@@ -319,7 +319,7 @@ export function App() {
 
   // Otherwise, render full Studio Visualizer
   return (
-    <div className="flex h-screen w-screen flex-col bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen w-screen flex-col bg-slate-50 text-slate-800 overflow-hidden font-sans">
       {/* Navbar */}
       <Navbar
         onAddTable={handleAddTable}
@@ -349,7 +349,7 @@ export function App() {
         )}
 
         {/* Right Pane: React Flow Canvas */}
-        <div className="flex-1 h-full relative bg-slate-950">
+        <div className="flex-1 h-full relative bg-slate-100/70">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -362,20 +362,20 @@ export function App() {
             maxZoom={2.5}
             defaultEdgeOptions={{
               type: 'smoothstep',
-              style: { stroke: '#38bdf8', strokeWidth: 2 },
+              style: { stroke: '#16a34a', strokeWidth: 2 },
             }}
           >
             <Background
               variant={BackgroundVariant.Dots}
               gap={24}
               size={1.5}
-              color="#334155"
+              color="#cbd5e1"
             />
-            <Controls className="!bg-slate-900 !border-slate-800 !rounded-xl !shadow-xl !overflow-hidden [&>button]:!bg-slate-900 [&>button]:!border-slate-800 [&>button]:!text-slate-300 [&>button:hover]:!bg-slate-800" />
+            <Controls className="!bg-white !border-slate-200 !rounded-xl !shadow-md !overflow-hidden [&>button]:!bg-white [&>button]:!border-slate-200 [&>button]:!text-slate-600 [&>button:hover]:!bg-slate-100" />
             <MiniMap
-              nodeColor="#3b82f6"
-              maskColor="rgba(15, 23, 42, 0.7)"
-              className="!bg-slate-900/90 !border-slate-800 !rounded-xl !shadow-xl"
+              nodeColor="#16a34a"
+              maskColor="rgba(241, 245, 249, 0.7)"
+              className="!bg-white/90 !border-slate-200 !rounded-xl !shadow-md"
             />
           </ReactFlow>
         </div>
