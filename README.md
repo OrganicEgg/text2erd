@@ -49,17 +49,18 @@ Most online database visualizers force you through a grueling funnel:
 - **🔗 Visual Column-to-Column Linking**: Drag a connection line directly from `posts.user_id` to `users.id` to establish foreign key constraints visually.
 - **🛠️ Direct Canvas Editing**: Click to rename tables inline, add new columns with types and primary key toggles, or delete tables.
 - **🪄 1-Click Auto-Layout**: Integrated `dagre` algorithm to automatically untangle and arrange complex diagrams neatly.
-- **📥 SQL DDL Import**: Already have an existing SQL dump? Paste standard `CREATE TABLE` and `ALTER TABLE` statements to instantly generate the visual diagram.
+- **📥 SQL DDL File & Text Import**: Upload `.sql` / `.ddl` files via drag-and-drop or paste standard `CREATE TABLE` and `ALTER TABLE` statements (with built-in 500 KB file size and 150-table guardrails).
 - **📤 Dialect-Specific SQL Export**: Formats clean, production-ready DDL for **PostgreSQL**, **MySQL**, and **SQLite**.
+- **📱 Mobile-Responsive Studio**: Seamless segmented switcher between the **Draft Editor** and **Diagram Canvas** on phones and tablets.
 - **📋 Starter Templates**: 1-click presets for *E-Commerce*, *Blog & Social*, and *Project Management*.
 
 ---
 
 ## 🏗️ Architecture
 
-- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS, `@xyflow/react` (React Flow v12), `dagre`, `lucide-react`.
-- **Backend**: Python 3.11+, Django 5.2, Django REST Framework, `sqlparse`, `django-cors-headers`.
-- **Stateless Design**: The backend runs purely in-memory (`DATABASES = :memory:`). No user data or schema is ever saved to disk.
+- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS, `@xyflow/react` (React Flow v12), `dagre`, `@fortawesome/react-fontawesome`.
+- **Backend**: Python 3.11+, Django 5.2, Django REST Framework, `sqlparse`, `django-cors-headers` (with 100% client-side parser fallback for zero-backend static hosting on Vercel).
+- **Stateless & Protected Design**: The backend runs purely in-memory (`DATABASES = :memory:`) with IP-based rate limiting (`AnonRateThrottle`) and payload/table size caps to protect public deployments.
 
 ---
 
@@ -111,6 +112,16 @@ Set the start command to:
 ```bash
 gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
 ```
+
+Supported environment variables for production hardening:
+- `DJANGO_SECRET_KEY`: Production secret key
+- `DJANGO_DEBUG`: Set to `False` in production
+- `DJANGO_ALLOWED_HOSTS`: Comma-separated allowed hostnames (e.g. `api.text2erd.com`)
+- `CORS_ALLOWED_ORIGINS`: Comma-separated frontend origins (e.g. `https://text2erd.vercel.app`)
+- `API_THROTTLE_RATE`: Rate limit per IP (default: `60/min`)
+- `MAX_IMPORT_SQL_BYTES`: Max SQL import size in bytes (default: `512000` / 500 KB)
+- `MAX_DRAFT_TEXT_BYTES`: Max shorthand draft size in bytes (default: `204800` / 200 KB)
+- `MAX_TABLES_LIMIT`: Max tables per diagram (default: `150`)
 
 ---
 

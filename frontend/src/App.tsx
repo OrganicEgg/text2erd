@@ -23,17 +23,28 @@ import { TEMPLATES } from './utils/templates';
 import { parseDraftTextClient } from './utils/clientParser';
 
 const DEFAULT_DRAFT = TEMPLATES[0].draft;
+const STORAGE_KEY = 'text2erd_saved_draft_v1';
+const MAX_TABLES_LIMIT = 150;
 
 export function App() {
   const [currentView, setCurrentView] = useState<'landing' | 'app'>(() =>
     window.location.hash === '#app' ? 'app' : 'landing'
   );
-  const [draftText, setDraftText] = useState(DEFAULT_DRAFT);
+  const [draftText, setDraftText] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved && saved.trim() ? saved : DEFAULT_DRAFT;
+    } catch {
+      return DEFAULT_DRAFT;
+    }
+  });
   const [tables, setTables] = useState<Table[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [loading, setLoading] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
 
   const [isEditorOpen, setIsEditorOpen] = useState(true);
+  const [mobilePane, setMobilePane] = useState<'editor' | 'canvas'>('canvas');
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
 
@@ -41,6 +52,19 @@ export function App() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const nodeTypes = useMemo(() => ({ tableNode: TableNode }), []);
+
+  // Persist draft in localStorage (ephemeral client-only convenience)
+  useEffect(() => {
+    try {
+      if (draftText.trim()) {
+        localStorage.setItem(STORAGE_KEY, draftText);
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [draftText]);
 
   // Update a single table from canvas interactions (rename, add col, delete col)
   const handleUpdateTable = useCallback((tableId: string, updatedTable: Table) => {
@@ -137,19 +161,39 @@ export function App() {
 
   // Run Draft: send to /api/parse-draft/ with client fallback
   const handleRunDraft = useCallback(
-    async (textOverride?: string) => {
+    async (textOverride?: string, switchToCanvasOnMobile = false) => {
       const textToParse = textOverride ?? draftText;
       if (!textToParse.trim()) return;
       setLoading(true);
+      setDraftError(null);
       try {
         const resp = await fetch('/api/parse-draft/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: textToParse }),
         });
+        if (resp.status === 413) {
+          const errData = await resp.json().catch(() => ({}));
+          setDraftError(errData.error || 'Draft exceeds maximum allowed size or table limit.');
+          setLoading(false);
+          return;
+        }
+        if (resp.status === 429) {
+          setDraftError('Too many requests. Please wait a moment and try again.');
+          setLoading(false);
+          return;
+        }
         if (resp.ok) {
           const data: DiagramData = await resp.json();
+          if (data.tables.length > MAX_TABLES_LIMIT) {
+            setDraftError(`Schema exceeds the ${MAX_TABLES_LIMIT}-table limit (${data.tables.length} found).`);
+            setLoading(false);
+            return;
+          }
           applyDiagramData(data);
+          if (switchToCanvasOnMobile) {
+            setMobilePane('canvas');
+          }
           setLoading(false);
           return;
         }
@@ -159,10 +203,17 @@ export function App() {
       // Fallback: client-side parser for Vercel / serverless deployments
       try {
         const clientData = parseDraftTextClient(textToParse);
+        if (clientData.tables.length > MAX_TABLES_LIMIT) {
+          setDraftError(`Schema exceeds the ${MAX_TABLES_LIMIT}-table limit (${clientData.tables.length} found).`);
+          return;
+        }
         applyDiagramData(clientData);
+        if (switchToCanvasOnMobile) {
+          setMobilePane('canvas');
+        }
       } catch (parseErr) {
         console.error('Failed to parse draft client-side', parseErr);
-        alert('Could not parse draft text. Please check syntax.');
+        setDraftError('Could not parse draft text. Please check syntax.');
       } finally {
         setLoading(false);
       }
@@ -264,6 +315,7 @@ export function App() {
     };
 
     setNodes((nds) => [...nds, newNode]);
+    setMobilePane('canvas');
   }, [tables, handleUpdateTable, handleDeleteTable, setNodes]);
 
   // Auto-Layout trigger
@@ -271,11 +323,13 @@ export function App() {
     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges);
     setNodes([...layoutedNodes]);
     setEdges([...layoutedEdges]);
+    setMobilePane('canvas');
   }, [nodes, edges, setNodes, setEdges]);
 
   // Reset to empty
   const handleReset = useCallback(() => {
     setDraftText('');
+    setDraftError(null);
     setTables([]);
     setRelationships([]);
     setNodes([]);
@@ -308,6 +362,7 @@ export function App() {
         lines.push('');
       });
       setDraftText(lines.join('\n'));
+      setMobilePane('canvas');
     },
     [applyDiagramData]
   );
@@ -319,7 +374,7 @@ export function App() {
 
   // Otherwise, render full Studio Visualizer
   return (
-    <div className="flex h-screen w-screen flex-col bg-slate-50 text-slate-800 overflow-hidden font-sans">
+    <div className="flex h-dvh w-screen flex-col bg-slate-50 text-slate-800 overflow-hidden font-sans">
       {/* Navbar */}
       <Navbar
         onAddTable={handleAddTable}
@@ -331,25 +386,39 @@ export function App() {
         tableCount={tables.length}
         relCount={relationships.length}
         onNavigateHome={handleNavigateHome}
+        mobilePane={mobilePane}
+        onChangeMobilePane={setMobilePane}
       />
 
       {/* Main Workspace Area */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* Left Pane: Notepad / Draft Editor */}
-        {isEditorOpen && (
-          <div className="w-80 md:w-96 shrink-0 h-full z-10 transition-all duration-300">
-            <NotepadEditor
-              draftText={draftText}
-              onChangeDraft={setDraftText}
-              onRunDraft={() => handleRunDraft()}
-              onReset={handleReset}
-              loading={loading}
-            />
-          </div>
-        )}
+        <div
+          className={`${
+            mobilePane === 'editor' ? 'flex w-full' : 'hidden'
+          } ${
+            isEditorOpen ? 'md:flex md:w-80 lg:w-96' : 'md:hidden'
+          } shrink-0 h-full z-10 transition-all duration-300`}
+        >
+          <NotepadEditor
+            draftText={draftText}
+            onChangeDraft={(val) => {
+              setDraftText(val);
+              if (draftError) setDraftError(null);
+            }}
+            onRunDraft={() => handleRunDraft(undefined, true)}
+            onReset={handleReset}
+            loading={loading}
+            error={draftError}
+          />
+        </div>
 
         {/* Right Pane: React Flow Canvas */}
-        <div className="flex-1 h-full relative bg-slate-100/70">
+        <div
+          className={`${
+            mobilePane === 'canvas' ? 'flex' : 'hidden md:flex'
+          } flex-1 h-full relative bg-slate-100/70`}
+        >
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -358,7 +427,7 @@ export function App() {
             onConnect={onConnect}
             nodeTypes={nodeTypes}
             fitView
-            minZoom={0.2}
+            minZoom={0.15}
             maxZoom={2.5}
             defaultEdgeOptions={{
               type: 'smoothstep',
@@ -375,7 +444,7 @@ export function App() {
             <MiniMap
               nodeColor="#16a34a"
               maskColor="rgba(241, 245, 249, 0.7)"
-              className="!bg-white/90 !border-slate-200 !rounded-xl !shadow-md"
+              className="hidden sm:block !bg-white/90 !border-slate-200 !rounded-xl !shadow-md"
             />
           </ReactFlow>
         </div>

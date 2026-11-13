@@ -48,4 +48,21 @@ describe('Navbar component', () => {
     });
     expect(container.innerHTML).not.toContain('github.com');
   });
+
+  it('renders mobile Editor/Canvas switcher when onChangeMobilePane is provided', () => {
+    const handleMobilePane = vi.fn();
+    render(
+      <Navbar
+        {...defaultProps}
+        mobilePane="canvas"
+        onChangeMobilePane={handleMobilePane}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Draft Editor'));
+    expect(handleMobilePane).toHaveBeenCalledWith('editor');
+
+    fireEvent.click(screen.getByText('Diagram Canvas'));
+    expect(handleMobilePane).toHaveBeenCalledWith('canvas');
+  });
 });

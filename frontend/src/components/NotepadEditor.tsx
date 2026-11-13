@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { TEMPLATES } from '../utils/templates';
 import type { PresetTemplate } from '../utils/templates';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -9,7 +9,10 @@ import {
   faAngleDown,
   faWandMagicSparkles,
   faXmark,
+  faCircleExclamation,
 } from '@fortawesome/free-solid-svg-icons';
+
+export const MAX_DRAFT_BYTES = 200 * 1024; // 200 KB limit
 
 interface NotepadEditorProps {
   draftText: string;
@@ -17,6 +20,7 @@ interface NotepadEditorProps {
   onRunDraft: () => void;
   onReset: () => void;
   loading: boolean;
+  error?: string | null;
 }
 
 export const NotepadEditor: React.FC<NotepadEditorProps> = ({
@@ -25,18 +29,37 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
   onRunDraft,
   onReset,
   loading,
+  error,
 }) => {
   const [showGuide, setShowGuide] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const byteSize = new Blob([draftText]).size;
+  const isOverLimit = byteSize > MAX_DRAFT_BYTES;
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowTemplates(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSelectTemplate = (tpl: PresetTemplate) => {
     onChangeDraft(tpl.draft);
+    setShowTemplates(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Ctrl+Enter or Cmd+Enter to Run
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
-      onRunDraft();
+      if (!isOverLimit) {
+        onRunDraft();
+      }
     }
     // Tab key indent support
     if (e.key === 'Tab') {
@@ -56,12 +79,13 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
   return (
     <div className="flex h-full flex-col border-r border-slate-200 bg-slate-50 w-full">
       {/* Editor Top Bar */}
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-200 px-3.5 sm:px-4 py-2.5 sm:py-3 bg-white">
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-slate-800">
             Schema Draft
           </span>
           <button
+            type="button"
             onClick={() => setShowGuide(!showGuide)}
             className="flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-green-700 transition-colors cursor-pointer"
             title="Syntax guide"
@@ -73,32 +97,40 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
 
         {/* Template Quick Select */}
         <div className="flex items-center gap-2">
-          <div className="relative group">
-            <button className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer shadow-xs">
+          <div className="relative" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setShowTemplates((prev) => !prev)}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer shadow-xs"
+            >
               <FontAwesomeIcon icon={faWandMagicSparkles} className="text-green-600 text-[10px]" />
               <span>Templates</span>
               <FontAwesomeIcon icon={faAngleDown} className="text-[10px] text-slate-400" />
             </button>
-            <div className="absolute right-0 top-full mt-1 hidden w-52 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg group-hover:block z-30">
-              <div className="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider">
-                Load Template
+            {showTemplates && (
+              <div className="absolute right-0 top-full mt-1 w-52 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg z-30">
+                <div className="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider">
+                  Load Template
+                </div>
+                {TEMPLATES.map((tpl) => (
+                  <button
+                    key={tpl.name}
+                    type="button"
+                    onClick={() => handleSelectTemplate(tpl)}
+                    className="flex w-full flex-col items-start rounded-lg px-2.5 py-2 text-left text-xs hover:bg-green-50 hover:text-green-800 transition-colors cursor-pointer"
+                  >
+                    <span className="font-semibold text-slate-800">{tpl.name}</span>
+                    <span className="text-[10px] text-slate-500 truncate max-w-full">
+                      {tpl.description}
+                    </span>
+                  </button>
+                ))}
               </div>
-              {TEMPLATES.map((tpl) => (
-                <button
-                  key={tpl.name}
-                  onClick={() => handleSelectTemplate(tpl)}
-                  className="flex w-full flex-col items-start rounded-lg px-2 py-1.5 text-left text-xs hover:bg-green-50 hover:text-green-800 transition-colors cursor-pointer"
-                >
-                  <span className="font-semibold text-slate-800">{tpl.name}</span>
-                  <span className="text-[10px] text-slate-500 truncate max-w-full">
-                    {tpl.description}
-                  </span>
-                </button>
-              ))}
-            </div>
+            )}
           </div>
 
           <button
+            type="button"
             onClick={onReset}
             className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-colors cursor-pointer shadow-xs"
             title="Reset to blank canvas"
@@ -114,6 +146,7 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
           <div className="font-semibold text-green-900 flex items-center justify-between">
             <span>Drafting Shorthand</span>
             <button
+              type="button"
               onClick={() => setShowGuide(false)}
               className="text-slate-400 hover:text-slate-600 cursor-pointer"
             >
@@ -123,7 +156,7 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
           <p className="text-slate-600 text-[11px]">
             Write a table name, then indent column definitions:
           </p>
-          <pre className="rounded-lg bg-white p-2.5 font-mono text-[11px] text-slate-800 leading-relaxed border border-green-200 shadow-2xs">
+          <pre className="rounded-lg bg-white p-2.5 font-mono text-[11px] text-slate-800 leading-relaxed border border-green-200 shadow-2xs overflow-x-auto">
 {`users
   id int pk
   email varchar(255) unique not null
@@ -135,13 +168,25 @@ posts
   title varchar(200)`}
           </pre>
           <p className="text-[11px] text-slate-600">
-            Link foreign keys using <code className="font-mono text-green-800 bg-green-100 px-1 py-0.5 rounded">-&gt; table.col</code>. Press <kbd className="rounded bg-white border border-slate-300 px-1.5 py-0.5 text-[10px] font-sans font-medium text-slate-700 shadow-2xs">Ctrl+Enter</kbd> to render!
+            Link foreign keys using <code className="font-mono text-green-800 bg-green-100 px-1 py-0.5 rounded">-&gt; table.col</code>.
           </p>
         </div>
       )}
 
+      {/* Error / Size Warning Banner */}
+      {(error || isOverLimit) && (
+        <div className="mx-3 mt-2.5 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700">
+          <FontAwesomeIcon icon={faCircleExclamation} className="text-rose-600 mt-0.5 shrink-0" />
+          <span>
+            {isOverLimit
+              ? `Draft size (${(byteSize / 1024).toFixed(1)} KB) exceeds the ${MAX_DRAFT_BYTES / 1024} KB limit.`
+              : error}
+          </span>
+        </div>
+      )}
+
       {/* Main Text Area */}
-      <div className="relative flex-1 p-3">
+      <div className="relative flex-1 p-3 min-h-0">
         <textarea
           value={draftText}
           onChange={(e) => onChangeDraft(e.target.value)}
@@ -153,8 +198,8 @@ posts
       </div>
 
       {/* Bottom Action Footer */}
-      <div className="flex items-center justify-between border-t border-slate-200 bg-white px-4 py-2.5">
-        <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+      <div className="flex items-center justify-between border-t border-slate-200 bg-white px-3.5 sm:px-4 py-2.5 gap-2">
+        <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-500">
           <kbd className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-slate-600 border border-slate-200">
             Ctrl
           </kbd>
@@ -165,10 +210,15 @@ posts
           <span className="ml-1 text-slate-400">to render</span>
         </div>
 
+        <div className="text-[11px] font-mono text-slate-400 sm:hidden">
+          {(byteSize / 1024).toFixed(1)} / {MAX_DRAFT_BYTES / 1024} KB
+        </div>
+
         <button
+          type="button"
           onClick={onRunDraft}
-          disabled={loading}
-          className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50 transition-all cursor-pointer"
+          disabled={loading || isOverLimit}
+          className="flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50 transition-all cursor-pointer"
         >
           <FontAwesomeIcon icon={faPlay} className="text-xs" />
           <span>{loading ? 'Rendering...' : 'Visualize'}</span>

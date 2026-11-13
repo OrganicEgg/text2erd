@@ -29,14 +29,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
       {/* Top Navbar */}
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-2xs">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-600 text-white shadow-xs">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg bg-green-600 text-white shadow-xs">
               <FontAwesomeIcon icon={faDatabase} className="text-sm" />
             </div>
-            <span className="text-lg font-bold tracking-tight text-slate-900">
+            <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900">
               Text2ERD
             </span>
-            <span className="rounded-full bg-green-50 border border-green-200 px-2.5 py-0.5 text-[11px] font-semibold text-green-700">
+            <span className="hidden sm:inline-flex rounded-full bg-green-50 border border-green-200 px-2.5 py-0.5 text-[11px] font-semibold text-green-700">
               Free Web Tool
             </span>
           </div>
@@ -135,7 +135,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
               </div>
 
               {/* Template Selectors */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {TEMPLATES.map((tpl, i) => (
                   <button
                     key={tpl.name}
@@ -151,7 +151,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                 ))}
                 <button
                   onClick={() => onLaunchApp(currentTemplate.draft)}
-                  className="ml-2 flex items-center gap-1 rounded-lg bg-green-50 border border-green-200 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-100 transition-colors cursor-pointer"
+                  className="sm:ml-2 flex items-center gap-1 rounded-lg bg-green-50 border border-green-200 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-100 transition-colors cursor-pointer"
                 >
                   <span>Edit in Studio</span>
                   <FontAwesomeIcon icon={faArrowRight} className="text-[10px]" />

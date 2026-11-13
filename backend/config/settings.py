@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -20,12 +21,26 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-l06-d0%f3!(%*nw6+rvzlmap=kae*(@cd55&^844qbh-!0&4*o'
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-l06-d0%f3!(%*nw6+rvzlmap=kae*(@cd55&^844qbh-!0&4*o',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.environ.get('DJANGO_ALLOWED_HOSTS', '*').split(',')
+    if h.strip()
+]
+
+# Request & Import Payload Limits (Protects CPU/RAM in public deployments)
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('DATA_UPLOAD_MAX_MEMORY_SIZE', 1024 * 1024))  # 1 MB max HTTP payload
+FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('FILE_UPLOAD_MAX_MEMORY_SIZE', 1024 * 1024))  # 1 MB
+MAX_IMPORT_SQL_BYTES = int(os.environ.get('MAX_IMPORT_SQL_BYTES', 500 * 1024))  # 500 KB max SQL import
+MAX_DRAFT_TEXT_BYTES = int(os.environ.get('MAX_DRAFT_TEXT_BYTES', 200 * 1024))  # 200 KB max shorthand draft
+MAX_TABLES_LIMIT = int(os.environ.get('MAX_TABLES_LIMIT', 150))  # Max tables per schema
 
 # Application definition
 
@@ -43,13 +58,32 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
+_cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '').strip()
+if _cors_origins:
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(',') if o.strip()]
+else:
+    CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+
+# In-memory cache for stateless IP rate-limiting
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'text2erd-throttle-cache',
+    }
+}
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [],
     'DEFAULT_PERMISSION_CLASSES': [],
     'UNAUTHENTICATED_USER': None,
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': os.environ.get('API_THROTTLE_RATE', '60/min'),
+    },
 }
 
 ROOT_URLCONF = 'config.urls'
