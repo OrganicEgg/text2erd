@@ -29,6 +29,15 @@ SECRET_KEY = os.environ.get(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('true', '1', 'yes')
 
+# Production Secret Key validation
+if not DEBUG and SECRET_KEY.startswith('django-insecure-'):
+    import warnings
+    warnings.warn(
+        "DJANGO_SECRET_KEY is using an insecure default in production! "
+        "Set DJANGO_SECRET_KEY environment variable immediately.",
+        RuntimeWarning,
+    )
+
 ALLOWED_HOSTS = [
     h.strip()
     for h in os.environ.get('DJANGO_ALLOWED_HOSTS', '*').split(',')
@@ -41,6 +50,17 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('FILE_UPLOAD_MAX_MEMORY_SIZE', 
 MAX_IMPORT_SQL_BYTES = int(os.environ.get('MAX_IMPORT_SQL_BYTES', 500 * 1024))  # 500 KB max SQL import
 MAX_DRAFT_TEXT_BYTES = int(os.environ.get('MAX_DRAFT_TEXT_BYTES', 200 * 1024))  # 200 KB max shorthand draft
 MAX_TABLES_LIMIT = int(os.environ.get('MAX_TABLES_LIMIT', 150))  # Max tables per schema
+
+# Security Headers & SSL Settings for Production
+if not DEBUG:
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', 31536000))  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'True').lower() in ('true', '1', 'yes')
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Application definition
 
@@ -55,6 +75,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django.middleware.common.CommonMiddleware',
 ]
 
@@ -64,7 +85,7 @@ if _cors_origins:
     CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(',') if o.strip()]
 else:
     CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_CREDENTIALS = False
 
 # In-memory cache for stateless IP rate-limiting
 CACHES = {

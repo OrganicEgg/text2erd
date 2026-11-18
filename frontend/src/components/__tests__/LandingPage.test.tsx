@@ -29,7 +29,7 @@ describe('LandingPage component', () => {
 
   it('displays accurate, grounded free-tier copy without overselling', () => {
     render(<LandingPage onLaunchApp={vi.fn()} />);
-    expect(screen.getByText(/Free Web Tool/i)).toBeInTheDocument();
+    expect(screen.getByText(/Open Source/i)).toBeInTheDocument();
     expect(screen.getByText(/100% Free to Use/i)).toBeInTheDocument();
     expect(screen.getByText(/No Account or Login Required/i)).toBeInTheDocument();
   });

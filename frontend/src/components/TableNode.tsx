@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import type { TableNodeData, Column } from '../types/erd';
@@ -16,6 +16,7 @@ import {
 export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
   const nodeData = data as unknown as TableNodeData;
   const { table, onUpdateTable, onDeleteTable } = nodeData;
+  const isLocked = Boolean(nodeData.isLocked);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [tableNameInput, setTableNameInput] = useState(table.name);
@@ -24,7 +25,15 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
   const [newColType, setNewColType] = useState('varchar(255)');
   const [newColPk, setNewColPk] = useState(false);
 
+  useEffect(() => {
+    if (isLocked) {
+      setIsEditingName(false);
+      setIsAddingCol(false);
+    }
+  }, [isLocked]);
+
   const handleSaveTableName = () => {
+    if (isLocked) return;
     const trimmed = tableNameInput.trim();
     if (trimmed && trimmed !== table.name) {
       onUpdateTable(id, { ...table, name: trimmed, id: trimmed });
@@ -33,6 +42,7 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
   };
 
   const handleAddColumn = () => {
+    if (isLocked) return;
     if (!newColName.trim()) return;
     const newCol: Column = {
       name: newColName.trim(),
@@ -52,6 +62,7 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
   };
 
   const handleDeleteColumn = (colName: string) => {
+    if (isLocked) return;
     onUpdateTable(id, {
       ...table,
       columns: table.columns.filter((c) => c.name !== colName),
@@ -84,7 +95,7 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
       <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-emerald-50/70 via-slate-50 to-teal-50/50 px-3.5 py-2.5 rounded-t-xl">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <div className="h-2.5 w-2.5 rounded-full bg-emerald-600 ring-2 ring-emerald-500/20" />
-          {isEditingName ? (
+          {isEditingName && !isLocked ? (
             <div className="flex items-center gap-1 flex-1">
               <input
                 type="text"
@@ -104,17 +115,19 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
             </div>
           ) : (
             <div
-              className="flex items-center gap-1.5 truncate cursor-pointer group/title"
-              onClick={() => setIsEditingName(true)}
-              title="Click to rename"
+              className={`flex items-center gap-1.5 truncate group/title ${isLocked ? 'cursor-default' : 'cursor-pointer'}`}
+              onClick={() => !isLocked && setIsEditingName(true)}
+              title={isLocked ? table.name : 'Click to rename'}
             >
               <span className="font-semibold text-xs text-slate-900 tracking-wide truncate">
                 {table.name}
               </span>
-              <FontAwesomeIcon
-                icon={faPen}
-                className="h-2.5 w-2.5 text-slate-400 opacity-0 group-hover/title:opacity-100 transition-opacity"
-              />
+              {!isLocked && (
+                <FontAwesomeIcon
+                  icon={faPen}
+                  className="h-2.5 w-2.5 text-slate-400 opacity-0 group-hover/title:opacity-100 transition-opacity"
+                />
+              )}
             </div>
           )}
         </div>
@@ -123,13 +136,15 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 border border-slate-200">
             {table.columns.length}
           </span>
-          <button
-            onClick={() => onDeleteTable(id)}
-            className="text-slate-400 hover:text-rose-600 transition-colors p-1 cursor-pointer"
-            title="Delete table"
-          >
-            <FontAwesomeIcon icon={faTrashCan} className="h-3 w-3" />
-          </button>
+          {!isLocked && (
+            <button
+              onClick={() => onDeleteTable(id)}
+              className="text-slate-400 hover:text-rose-600 transition-colors p-1 cursor-pointer"
+              title="Delete table"
+            >
+              <FontAwesomeIcon icon={faTrashCan} className="h-3 w-3" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -150,8 +165,11 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
                 type="target"
                 position={Position.Left}
                 id={`${col.name}-target`}
-                className="!h-2.5 !w-2.5 !-left-1.5 !border-2 !border-white !bg-emerald-600 hover:!scale-125 transition-transform"
-                title={`Target: ${table.name}.${col.name}`}
+                isConnectable={!isLocked}
+                className={`!h-2.5 !w-2.5 !-left-1.5 !border-2 !border-white !bg-emerald-600 ${
+                  isLocked ? '!opacity-0 !pointer-events-none' : 'hover:!scale-125 transition-transform'
+                }`}
+                title={isLocked ? '' : `Target: ${table.name}.${col.name}`}
               />
 
               {/* Column Name & Badges */}
@@ -188,13 +206,15 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
                 >
                   {col.type}
                 </span>
-                <button
-                  onClick={() => handleDeleteColumn(col.name)}
-                  className="opacity-0 group-hover/row:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 cursor-pointer"
-                  title="Remove column"
-                >
-                  <FontAwesomeIcon icon={faXmark} className="h-2.5 w-2.5" />
-                </button>
+                {!isLocked && (
+                  <button
+                    onClick={() => handleDeleteColumn(col.name)}
+                    className="opacity-0 group-hover/row:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 cursor-pointer"
+                    title="Remove column"
+                  >
+                    <FontAwesomeIcon icon={faXmark} className="h-2.5 w-2.5" />
+                  </button>
+                )}
               </div>
 
               {/* Right Handle (Source) */}
@@ -202,8 +222,11 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
                 type="source"
                 position={Position.Right}
                 id={`${col.name}-source`}
-                className="!h-2.5 !w-2.5 !-right-1.5 !border-2 !border-white !bg-teal-600 hover:!scale-125 transition-transform"
-                title={`Source: ${table.name}.${col.name}`}
+                isConnectable={!isLocked}
+                className={`!h-2.5 !w-2.5 !-right-1.5 !border-2 !border-white !bg-teal-600 ${
+                  isLocked ? '!opacity-0 !pointer-events-none' : 'hover:!scale-125 transition-transform'
+                }`}
+                title={isLocked ? '' : `Source: ${table.name}.${col.name}`}
               />
             </div>
           ))
@@ -211,61 +234,63 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
       </div>
 
       {/* Add Column Expandable Form */}
-      {isAddingCol ? (
-        <div className="border-t border-slate-200 bg-slate-50/80 p-2.5 space-y-2 rounded-b-xl">
-          <div className="flex gap-1.5">
-            <input
-              type="text"
-              placeholder="column_name"
-              value={newColName}
-              onChange={(e) => setNewColName(e.target.value)}
-              className="flex-1 rounded bg-white px-2 py-1 text-xs text-slate-900 border border-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              autoFocus
-            />
-            <input
-              type="text"
-              placeholder="data_type"
-              value={newColType}
-              onChange={(e) => setNewColType(e.target.value)}
-              className="w-24 rounded bg-white px-2 py-1 text-xs text-slate-900 border border-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
-            />
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <label className="flex items-center gap-1 text-[11px] text-slate-600 cursor-pointer">
+      {!isLocked && (
+        isAddingCol ? (
+          <div className="border-t border-slate-200 bg-slate-50/80 p-2.5 space-y-2 rounded-b-xl">
+            <div className="flex gap-1.5">
               <input
-                type="checkbox"
-                checked={newColPk}
-                onChange={(e) => setNewColPk(e.target.checked)}
-                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                type="text"
+                placeholder="column_name"
+                value={newColName}
+                onChange={(e) => setNewColName(e.target.value)}
+                className="flex-1 rounded bg-white px-2 py-1 text-xs text-slate-900 border border-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                autoFocus
               />
-              <span>Primary Key</span>
-            </label>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setIsAddingCol(false)}
-                className="px-2 py-0.5 text-[11px] text-slate-500 hover:text-slate-700 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddColumn}
-                className="rounded bg-emerald-600 px-2.5 py-0.5 text-[11px] font-medium text-white hover:bg-emerald-700 transition-colors cursor-pointer"
-              >
-                Add
-              </button>
+              <input
+                type="text"
+                placeholder="data_type"
+                value={newColType}
+                onChange={(e) => setNewColType(e.target.value)}
+                className="w-24 rounded bg-white px-2 py-1 text-xs text-slate-900 border border-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <label className="flex items-center gap-1 text-[11px] text-slate-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={newColPk}
+                  onChange={(e) => setNewColPk(e.target.checked)}
+                  className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span>Primary Key</span>
+              </label>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setIsAddingCol(false)}
+                  className="px-2 py-0.5 text-[11px] text-slate-500 hover:text-slate-700 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddColumn}
+                  className="rounded bg-emerald-600 px-2.5 py-0.5 text-[11px] font-medium text-white hover:bg-emerald-700 transition-colors cursor-pointer"
+                >
+                  Add
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      ) : (
-        <div className="border-t border-slate-100 p-1.5 rounded-b-xl bg-slate-50/40">
-          <button
-            onClick={() => setIsAddingCol(true)}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg py-1 text-[11px] font-medium text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors cursor-pointer"
-          >
-            <FontAwesomeIcon icon={faPlus} className="h-2.5 w-2.5" />
-            <span>Add Column</span>
-          </button>
-        </div>
+        ) : (
+          <div className="border-t border-slate-100 p-1.5 rounded-b-xl bg-slate-50/40">
+            <button
+              onClick={() => setIsAddingCol(true)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg py-1 text-[11px] font-medium text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors cursor-pointer"
+            >
+              <FontAwesomeIcon icon={faPlus} className="h-2.5 w-2.5" />
+              <span>Add Column</span>
+            </button>
+          </div>
+        )
       )}
     </div>
   );

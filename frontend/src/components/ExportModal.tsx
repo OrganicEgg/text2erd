@@ -8,7 +8,7 @@ import {
   faDownload,
   faXmark,
 } from '@fortawesome/free-solid-svg-icons';
-import { generateSqlDdlClient } from '../utils/clientParser';
+import { generateSqlDdlClient, generateMermaidErDiagram } from '../utils/clientParser';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -23,13 +23,20 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   tables,
   relationships,
 }) => {
-  const [dialect, setDialect] = useState<'postgres' | 'mysql' | 'sqlite'>('postgres');
+  const [dialect, setDialect] = useState<'postgres' | 'mysql' | 'sqlite' | 'mermaid'>('postgres');
   const [sqlContent, setSqlContent] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
+
+    if (dialect === 'mermaid') {
+      const mermaidText = generateMermaidErDiagram(tables, relationships);
+      setSqlContent(mermaidText);
+      setLoading(false);
+      return;
+    }
 
     const fetchSql = async () => {
       setLoading(true);
@@ -66,11 +73,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   const handleDownload = () => {
+    const isMermaid = dialect === 'mermaid';
     const blob = new Blob([sqlContent], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `schema_${dialect}.sql`;
+    link.download = isMermaid ? 'diagram_mermaid.mmd' : `schema_${dialect}.sql`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -85,8 +93,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               <FontAwesomeIcon icon={faDatabase} className="text-sm" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-slate-900">Export SQL Schema</h3>
-              <p className="text-xs text-slate-500">Select dialect and download or copy DDL</p>
+              <h3 className="text-base font-semibold text-slate-900">Export Schema & Diagrams</h3>
+              <p className="text-xs text-slate-500">Select format and download or copy</p>
             </div>
           </div>
           <button
@@ -100,18 +108,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         {/* Dialect Switcher */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-6 py-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-slate-600">Dialect:</span>
-            {(['postgres', 'mysql', 'sqlite'] as const).map((d) => (
+            <span className="text-xs font-medium text-slate-600">Format:</span>
+            {(['postgres', 'mysql', 'sqlite', 'mermaid'] as const).map((d) => (
               <button
                 key={d}
                 onClick={() => setDialect(d)}
-                className={`rounded-lg px-3 py-1 text-xs font-semibold capitalize transition-colors cursor-pointer ${
+                className={`rounded-lg px-3 py-1 text-xs font-semibold transition-colors cursor-pointer ${
                   dialect === d
                     ? 'bg-green-600 text-white shadow-xs'
                     : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                {d === 'postgres' ? 'PostgreSQL' : d === 'mysql' ? 'MySQL' : 'SQLite'}
+                {d === 'postgres' ? 'PostgreSQL' : d === 'mysql' ? 'MySQL' : d === 'sqlite' ? 'SQLite' : 'Mermaid ERD'}
               </button>
             ))}
           </div>
@@ -125,14 +133,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 icon={copied ? faCheck : faCopy}
                 className={copied ? 'text-green-600 text-xs' : 'text-slate-500 text-xs'}
               />
-              <span>{copied ? 'Copied!' : 'Copy SQL'}</span>
+              <span>{copied ? 'Copied!' : dialect === 'mermaid' ? 'Copy Markdown' : 'Copy SQL'}</span>
             </button>
             <button
               onClick={handleDownload}
               className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-green-700 transition-colors cursor-pointer shadow-xs"
             >
               <FontAwesomeIcon icon={faDownload} className="text-xs" />
-              <span>Download .sql</span>
+              <span>Download {dialect === 'mermaid' ? '.mmd' : '.sql'}</span>
             </button>
           </div>
         </div>
@@ -148,6 +156,33 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               <code>{sqlContent}</code>
             </pre>
           )}
+        </div>
+
+        {/* Bottom Utility Footer */}
+        <div className="flex flex-wrap items-center justify-between border-t border-slate-200 bg-white px-6 py-3 text-xs gap-3">
+          <div className="flex items-center gap-2 text-slate-500">
+            <span className="font-medium text-slate-600">Deploy Schema:</span>
+            <a
+              href="https://supabase.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-700 hover:bg-slate-100 hover:text-emerald-700 transition-colors"
+            >
+              Supabase ↗
+            </a>
+            <a
+              href="https://neon.tech"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-700 hover:bg-slate-100 hover:text-emerald-700 transition-colors"
+            >
+              Neon ↗
+            </a>
+          </div>
+
+          <div className="flex items-center gap-3 text-slate-400 text-[11px]">
+            <span>100% Free & Open Source</span>
+          </div>
         </div>
       </div>
     </div>

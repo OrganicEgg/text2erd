@@ -214,6 +214,71 @@ export function generateSqlDdlClient(
   return lines.join('\n').trim() + '\n';
 }
 
+export function generateMermaidErDiagram(
+  tables: Table[],
+  relationships: Relationship[]
+): string {
+  const lines: string[] = ['erDiagram'];
+
+  for (const rel of relationships) {
+    const sTable = rel.source_table.replace(/[^a-zA-Z0-9_]/g, '_');
+    const tTable = rel.target_table.replace(/[^a-zA-Z0-9_]/g, '_');
+    lines.push(`    ${tTable} ||--o{ ${sTable} : "${rel.source_column} -> ${rel.target_column}"`);
+  }
+
+  for (const tbl of tables) {
+    const safeTbl = tbl.name.replace(/[^a-zA-Z0-9_]/g, '_');
+    lines.push(`    ${safeTbl} {`);
+    for (const col of tbl.columns) {
+      const safeType = (col.type || 'string').replace(/[^a-zA-Z0-9_]/g, '_');
+      const safeCol = col.name.replace(/[^a-zA-Z0-9_]/g, '_');
+      const badges: string[] = [];
+      if (col.is_pk) badges.push('PK');
+      if (col.is_fk) badges.push('FK');
+      if (col.is_unique && !col.is_pk) badges.push('UK');
+      const badgeStr = badges.length ? ` ${badges.join(',')}` : '';
+      lines.push(`        ${safeType} ${safeCol}${badgeStr}`);
+    }
+    lines.push(`    }`);
+  }
+
+  return lines.join('\n').trim() + '\n';
+}
+
+export function encodeDraftToHash(text: string): string {
+  try {
+    const bytes = new TextEncoder().encode(text);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  } catch {
+    return encodeURIComponent(text);
+  }
+}
+
+export function decodeDraftFromHash(hashStr: string): string | null {
+  try {
+    let base64 = hashStr.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new TextDecoder().decode(bytes);
+  } catch {
+    try {
+      return decodeURIComponent(hashStr);
+    } catch {
+      return null;
+    }
+  }
+}
+
 export function parseSqlDdlClient(sql: string): DiagramData {
   const tables: Record<string, Table> = {};
   const relationships: Relationship[] = [];
