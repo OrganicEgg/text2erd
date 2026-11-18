@@ -182,15 +182,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
           <div className="flex items-center gap-3 text-slate-400 text-[11px]">
             <span>100% Free & Open Source</span>
-            <span>•</span>
-            <a
-              href="https://github.com/OrganicEgg/text2erd"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-slate-600 hover:text-slate-900 underline transition-colors"
-            >
-              Star on GitHub
-            </a>
           </div>
         </div>
       </div>

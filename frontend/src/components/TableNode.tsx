@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import type { TableNodeData, Column } from '../types/erd';
@@ -25,6 +25,13 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
   const [newColType, setNewColType] = useState('varchar(255)');
   const [newColPk, setNewColPk] = useState(false);
 
+  useEffect(() => {
+    if (isLocked) {
+      setIsEditingName(false);
+      setIsAddingCol(false);
+    }
+  }, [isLocked]);
+
   const handleSaveTableName = () => {
     if (isLocked) return;
     const trimmed = tableNameInput.trim();
@@ -35,6 +42,7 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
   };
 
   const handleAddColumn = () => {
+    if (isLocked) return;
     if (!newColName.trim()) return;
     const newCol: Column = {
       name: newColName.trim(),
@@ -54,6 +62,7 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
   };
 
   const handleDeleteColumn = (colName: string) => {
+    if (isLocked) return;
     onUpdateTable(id, {
       ...table,
       columns: table.columns.filter((c) => c.name !== colName),
@@ -86,7 +95,7 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
       <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-emerald-50/70 via-slate-50 to-teal-50/50 px-3.5 py-2.5 rounded-t-xl">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <div className="h-2.5 w-2.5 rounded-full bg-emerald-600 ring-2 ring-emerald-500/20" />
-          {isEditingName ? (
+          {isEditingName && !isLocked ? (
             <div className="flex items-center gap-1 flex-1">
               <input
                 type="text"

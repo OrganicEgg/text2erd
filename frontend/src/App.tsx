@@ -183,7 +183,7 @@ export function App() {
 
       return getLayoutedElements(flowNodes, flowEdges);
     },
-    [handleUpdateTable, handleDeleteTable]
+    [handleUpdateTable, handleDeleteTable, isCanvasLocked]
   );
 
   // Apply diagram data to state and canvas

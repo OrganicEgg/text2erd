@@ -188,3 +188,64 @@ class ApiEndpointsTestCase(TestCase):
         resp = self.client.post('/api/export-sql/', payload, format='json')
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertIn('CREATE TABLE "accounts"', resp.json()["sql"])
+
+    @override_settings(MAX_TABLES_LIMIT=1)
+    def test_export_sql_exceeds_max_tables_limit(self):
+        payload = {
+            "tables": [
+                {"name": "t1", "columns": [{"name": "id", "type": "int", "is_pk": True}]},
+                {"name": "t2", "columns": [{"name": "id", "type": "int", "is_pk": True}]},
+            ],
+            "relationships": [],
+            "dialect": "postgres",
+        }
+        resp = self.client.post('/api/export-sql/', payload, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+        self.assertIn("Cannot export more than 1 tables", resp.json().get("error", ""))
+
+    def test_invalid_payload_types_rejected(self):
+        resp_draft = self.client.post('/api/parse-draft/', {"text": ["not-a-string"]}, format='json')
+        self.assertEqual(resp_draft.status_code, status.HTTP_400_BAD_REQUEST)
+
+        resp_sql = self.client.post('/api/import-sql/', {"sql": 12345}, format='json')
+        self.assertEqual(resp_sql.status_code, status.HTTP_400_BAD_REQUEST)
+
+        resp_export = self.client.post('/api/export-sql/', {"tables": "invalid", "relationships": []}, format='json')
+        self.assertEqual(resp_export.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_non_utf8_sql_file_rejected(self):
+        bad_file = SimpleUploadedFile(
+            "binary.sql",
+            b"\xff\xfe\x00\x00invalid-utf8",
+            content_type="application/sql",
+        )
+        resp = self.client.post('/api/import-sql/', {"file": bad_file}, format='multipart')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("UTF-8", resp.json().get("error", ""))
+
+    def test_rate_limiting_enforced_on_api_endpoints(self):
+        from unittest.mock import patch
+        from rest_framework.throttling import AnonRateThrottle
+
+        cache.clear()
+        payload = {"text": "users\n  id int pk\n"}
+        with patch.dict(AnonRateThrottle.THROTTLE_RATES, {"anon": "2/min"}):
+            r1 = self.client.post('/api/parse-draft/', payload, format='json')
+            r2 = self.client.post('/api/parse-draft/', payload, format='json')
+            r3 = self.client.post('/api/parse-draft/', payload, format='json')
+            self.assertEqual(r1.status_code, status.HTTP_200_OK)
+            self.assertEqual(r2.status_code, status.HTTP_200_OK)
+            self.assertEqual(r3.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+            # Health check endpoint is exempt from rate throttling
+            health_resp = self.client.get('/api/health/')
+            self.assertEqual(health_resp.status_code, status.HTTP_200_OK)
+
+    @override_settings(SECURE_CONTENT_TYPE_NOSNIFF=True, X_FRAME_OPTIONS='DENY')
+    def test_security_headers_present(self):
+        resp = self.client.get('/api/health/')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(resp.headers.get("X-Frame-Options"), "DENY")
+        self.assertEqual(resp.headers.get("Cross-Origin-Opener-Policy"), "same-origin")
+

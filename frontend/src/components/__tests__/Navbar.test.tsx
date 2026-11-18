@@ -15,9 +15,15 @@ describe('Navbar component', () => {
     onNavigateHome: vi.fn(),
   };
 
-  it('renders Text2ERD branding and table counters', () => {
+  it('renders Text2ERD branding, home button, and table counters', () => {
     render(<Navbar {...defaultProps} />);
-    expect(screen.getAllByText('Text2ERD').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Text2ERD').length).toBeGreaterThanOrEqual(2);
+    const homeBtn = screen.getByTitle('Return to Text2ERD Home');
+    expect(homeBtn).toBeInTheDocument();
+    expect(homeBtn).toHaveTextContent('Text2ERD');
+    fireEvent.click(homeBtn);
+    expect(defaultProps.onNavigateHome).toHaveBeenCalledTimes(1);
+
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText('tables')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
