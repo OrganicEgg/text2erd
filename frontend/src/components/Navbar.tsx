@@ -10,6 +10,10 @@ import {
   faColumns,
   faCode,
   faDiagramProject,
+  faShareNodes,
+  faCheck,
+  faLock,
+  faLockOpen,
 } from '@fortawesome/free-solid-svg-icons';
 
 interface NavbarProps {
@@ -17,6 +21,10 @@ interface NavbarProps {
   onAutoLayout: () => void;
   onOpenImport: () => void;
   onOpenExport: () => void;
+  onShare?: () => void;
+  shareCopied?: boolean;
+  isLocked?: boolean;
+  onToggleLock?: () => void;
   isEditorOpen: boolean;
   onToggleEditor: () => void;
   tableCount: number;
@@ -31,6 +39,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   onAutoLayout,
   onOpenImport,
   onOpenExport,
+  onShare,
+  shareCopied = false,
+  isLocked = false,
+  onToggleLock,
   isEditorOpen,
   onToggleEditor,
   tableCount,
@@ -48,10 +60,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={onNavigateHome}
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 sm:px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer shrink-0"
-              title="Back to Landing Page"
+              title="Return to Text2ERD Home"
             >
               <FontAwesomeIcon icon={faHouse} className="text-slate-500 text-xs" />
-              <span className="hidden lg:inline">Landing</span>
+              <span className="hidden lg:inline">Text2ERD</span>
             </button>
           )}
 
@@ -105,6 +117,24 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden sm:inline">Auto Layout</span>
           </button>
 
+          {onToggleLock && (
+            <button
+              onClick={onToggleLock}
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-medium transition-all cursor-pointer shadow-xs ${
+                isLocked
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white font-semibold ring-2 ring-amber-300 shadow-amber-500/20'
+                  : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+              title={isLocked ? 'Canvas is locked — Click to unlock' : 'Lock canvas layout'}
+            >
+              <FontAwesomeIcon
+                icon={isLocked ? faLock : faLockOpen}
+                className={isLocked ? 'text-white text-xs' : 'text-slate-500 text-xs'}
+              />
+              <span className="hidden sm:inline">{isLocked ? 'Unlock' : 'Lock'}</span>
+            </button>
+          )}
+
           <div className="h-4 w-[1px] bg-slate-200 mx-0.5 hidden sm:block" />
 
           <button
@@ -119,11 +149,25 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={onOpenExport}
             className="flex items-center gap-1.5 rounded-lg bg-green-600 px-2.5 sm:px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-green-700 transition-colors cursor-pointer"
-            title="Export SQL DDL"
+            title="Export SQL DDL or Mermaid diagram"
           >
             <FontAwesomeIcon icon={faFileExport} className="text-xs" />
             <span>Export SQL</span>
           </button>
+
+          {onShare && (
+            <button
+              onClick={onShare}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer shadow-xs"
+              title="Copy shareable link to this schema"
+            >
+              <FontAwesomeIcon
+                icon={shareCopied ? faCheck : faShareNodes}
+                className={shareCopied ? 'text-green-600 text-xs' : 'text-slate-500 text-xs'}
+              />
+              <span className="hidden sm:inline">{shareCopied ? 'Copied Link!' : 'Share'}</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -36,8 +36,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
             <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900">
               Text2ERD
             </span>
-            <span className="hidden sm:inline-flex rounded-full bg-green-50 border border-green-200 px-2.5 py-0.5 text-[11px] font-semibold text-green-700">
-              Free Web Tool
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-green-50 border border-green-200 px-2.5 py-0.5 text-[11px] font-semibold text-green-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-600 animate-pulse" />
+              Open Source
             </span>
           </div>
 

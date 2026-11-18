@@ -106,5 +106,66 @@ tasks
   status varchar(50)
   priority varchar(20)
   due_date timestamp`
+  },
+  {
+    name: "SaaS & Billing",
+    description: "Tenants, Subscriptions, Invoices, Plans, and API Keys",
+    draft: `tenants
+  id uuid pk
+  name varchar(100) not null
+  slug varchar(50) unique not null
+  created_at timestamp
+
+subscriptions
+  id uuid pk
+  tenant_id uuid -> tenants.id
+  stripe_customer_id varchar(100) unique
+  status varchar(50) not null
+  current_period_end timestamp
+
+invoices
+  id uuid pk
+  subscription_id uuid -> subscriptions.id
+  amount_due decimal(10,2) not null
+  paid boolean
+  created_at timestamp
+
+api_keys
+  id uuid pk
+  tenant_id uuid -> tenants.id
+  key_hash varchar(255) unique not null
+  name varchar(100)
+  last_used_at timestamp`
+  },
+  {
+    name: "FinTech & Ledger",
+    description: "Accounts, Wallets, Transactions, and Audit Ledgers",
+    draft: `users
+  id uuid pk
+  email varchar(255) unique not null
+  kyc_status varchar(50) not null
+  created_at timestamp
+
+wallets
+  id uuid pk
+  user_id uuid -> users.id
+  currency varchar(3) not null
+  balance decimal(18,4) not null
+
+transactions
+  id uuid pk
+  sender_wallet_id uuid -> wallets.id
+  recipient_wallet_id uuid -> wallets.id
+  amount decimal(18,4) not null
+  status varchar(50) not null
+  created_at timestamp
+
+ledger_entries
+  id uuid pk
+  tx_id uuid -> transactions.id
+  wallet_id uuid -> wallets.id
+  entry_type varchar(20) not null
+  amount decimal(18,4) not null
+  balance_after decimal(18,4) not null`
   }
 ];

@@ -31,4 +31,5 @@ export interface TableNodeData extends Record<string, unknown> {
   table: Table;
   onUpdateTable: (tableId: string, updated: Table) => void;
   onDeleteTable: (tableId: string) => void;
+  isLocked?: boolean;
 }

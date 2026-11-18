@@ -20,18 +20,31 @@ import { LandingPage } from './components/LandingPage';
 import type { Table, Relationship, DiagramData, TableNodeData } from './types/erd';
 import { getLayoutedElements } from './utils/layout';
 import { TEMPLATES } from './utils/templates';
-import { parseDraftTextClient } from './utils/clientParser';
+import {
+  parseDraftTextClient,
+  encodeDraftToHash,
+  decodeDraftFromHash,
+} from './utils/clientParser';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faLock, faLockOpen } from '@fortawesome/free-solid-svg-icons';
 
 const DEFAULT_DRAFT = TEMPLATES[0].draft;
 const STORAGE_KEY = 'text2erd_saved_draft_v1';
 const MAX_TABLES_LIMIT = 150;
 
 export function App() {
-  const [currentView, setCurrentView] = useState<'landing' | 'app'>(() =>
-    window.location.hash === '#app' ? 'app' : 'landing'
-  );
+  const [currentView, setCurrentView] = useState<'landing' | 'app'>(() => {
+    if (typeof window !== 'undefined' && (window.location.hash.startsWith('#draft=') || window.location.hash === '#app')) {
+      return 'app';
+    }
+    return 'landing';
+  });
   const [draftText, setDraftText] = useState<string>(() => {
     try {
+      if (typeof window !== 'undefined' && window.location.hash.startsWith('#draft=')) {
+        const decoded = decodeDraftFromHash(window.location.hash.slice(7));
+        if (decoded && decoded.trim()) return decoded;
+      }
       const saved = localStorage.getItem(STORAGE_KEY);
       return saved && saved.trim() ? saved : DEFAULT_DRAFT;
     } catch {
@@ -42,16 +55,44 @@ export function App() {
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [loading, setLoading] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  const handleShare = useCallback(() => {
+    try {
+      const hash = encodeDraftToHash(draftText);
+      const url = `${window.location.origin}${window.location.pathname}#draft=${hash}`;
+      window.history.replaceState(null, '', `#draft=${hash}`);
+      navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2500);
+    } catch (e) {
+      console.error('Failed to copy share link', e);
+    }
+  }, [draftText]);
 
   const [isEditorOpen, setIsEditorOpen] = useState(true);
   const [mobilePane, setMobilePane] = useState<'editor' | 'canvas'>('canvas');
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isCanvasLocked, setIsCanvasLocked] = useState(false);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<TableNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const nodeTypes = useMemo(() => ({ tableNode: TableNode }), []);
+
+  // Sync canvas lock state to all nodes
+  useEffect(() => {
+    setNodes((nds) =>
+      nds.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          isLocked: isCanvasLocked,
+        },
+      }))
+    );
+  }, [isCanvasLocked, setNodes]);
 
   // Persist draft in localStorage (ephemeral client-only convenience)
   useEffect(() => {
@@ -110,6 +151,7 @@ export function App() {
           table: tbl,
           onUpdateTable: handleUpdateTable,
           onDeleteTable: handleDeleteTable,
+          isLocked: isCanvasLocked,
         },
       }));
 
@@ -247,7 +289,7 @@ export function App() {
   // Connection created by dragging handle to handle
   const onConnect = useCallback(
     (connection: Connection) => {
-      if (!connection.source || !connection.target) return;
+      if (isCanvasLocked || !connection.source || !connection.target) return;
 
       const sourceCol = connection.sourceHandle?.replace('-source', '') || '';
       const targetCol = connection.targetHandle?.replace('-target', '') || '';
@@ -286,11 +328,13 @@ export function App() {
 
       setEdges((eds) => addEdge(newEdge, eds));
     },
-    [setEdges]
+    [isCanvasLocked, setEdges]
   );
 
   // Add Table directly from canvas
   const handleAddTable = useCallback(() => {
+    if (isCanvasLocked) return;
+
     const tableNum = tables.length + 1;
     const newTableName = `table_${tableNum}`;
     const newTbl: Table = {
@@ -311,20 +355,23 @@ export function App() {
         table: newTbl,
         onUpdateTable: handleUpdateTable,
         onDeleteTable: handleDeleteTable,
+        isLocked: isCanvasLocked,
       },
     };
 
     setNodes((nds) => [...nds, newNode]);
     setMobilePane('canvas');
-  }, [tables, handleUpdateTable, handleDeleteTable, setNodes]);
+  }, [isCanvasLocked, tables, handleUpdateTable, handleDeleteTable, setNodes]);
 
   // Auto-Layout trigger
   const handleAutoLayout = useCallback(() => {
+    if (isCanvasLocked) return;
+
     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges);
     setNodes([...layoutedNodes]);
     setEdges([...layoutedEdges]);
     setMobilePane('canvas');
-  }, [nodes, edges, setNodes, setEdges]);
+  }, [isCanvasLocked, nodes, edges, setNodes, setEdges]);
 
   // Reset to empty
   const handleReset = useCallback(() => {
@@ -381,6 +428,10 @@ export function App() {
         onAutoLayout={handleAutoLayout}
         onOpenImport={() => setIsImportOpen(true)}
         onOpenExport={() => setIsExportOpen(true)}
+        onShare={handleShare}
+        shareCopied={shareCopied}
+        isLocked={isCanvasLocked}
+        onToggleLock={() => setIsCanvasLocked((prev) => !prev)}
         isEditorOpen={isEditorOpen}
         onToggleEditor={() => setIsEditorOpen(!isEditorOpen)}
         tableCount={tables.length}
@@ -419,16 +470,48 @@ export function App() {
             mobilePane === 'canvas' ? 'flex' : 'hidden md:flex'
           } flex-1 h-full relative bg-slate-100/70`}
         >
+          {/* Floating Canvas Locked Alert Banner */}
+          {isCanvasLocked && (
+            <div
+              role="alert"
+              aria-live="polite"
+              className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5 sm:gap-3 px-3.5 sm:px-4 py-2 rounded-full bg-slate-900/90 text-slate-100 border border-amber-500/50 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-top-3 duration-200"
+            >
+              <div className="flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 text-amber-400">
+                <FontAwesomeIcon icon={faLock} className="text-xs text-amber-400" />
+              </div>
+              <div className="text-xs font-medium tracking-wide">
+                <span className="font-semibold text-amber-300">Canvas Locked</span>
+                <span className="text-slate-300 hidden sm:inline"> — Visualizer is frozen (pan & zoom active)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCanvasLocked(false)}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 transition-colors shadow-sm cursor-pointer ml-1"
+                title="Unlock canvas to resume editing"
+              >
+                <FontAwesomeIcon icon={faLockOpen} className="text-[10px]" />
+                <span>Unlock</span>
+              </button>
+            </div>
+          )}
+
           <ReactFlow
             nodes={nodes}
             edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
+            onNodesChange={isCanvasLocked ? undefined : onNodesChange}
+            onEdgesChange={isCanvasLocked ? undefined : onEdgesChange}
             onConnect={onConnect}
             nodeTypes={nodeTypes}
             fitView
             minZoom={0.15}
             maxZoom={2.5}
+            nodesDraggable={!isCanvasLocked}
+            nodesConnectable={!isCanvasLocked}
+            elementsSelectable={!isCanvasLocked}
+            nodesFocusable={!isCanvasLocked}
+            edgesFocusable={!isCanvasLocked}
+            deleteKeyCode={isCanvasLocked ? null : ['Backspace', 'Delete']}
             defaultEdgeOptions={{
               type: 'smoothstep',
               style: { stroke: '#16a34a', strokeWidth: 2 },

@@ -3,6 +3,9 @@ import {
   parseDraftTextClient,
   generateSqlDdlClient,
   parseSqlDdlClient,
+  generateMermaidErDiagram,
+  encodeDraftToHash,
+  decodeDraftFromHash,
 } from '../clientParser';
 import type { Table, Relationship } from '../../types/erd';
 
@@ -156,6 +159,61 @@ CREATE TABLE orders (
       expect(result.relationships[0].source_column).toBe('user_id');
       expect(result.relationships[0].target_table).toBe('users');
       expect(result.relationships[0].target_column).toBe('id');
+    });
+  });
+
+  describe('generateMermaidErDiagram', () => {
+    it('generates valid Mermaid erDiagram syntax with relationships and columns', () => {
+      const tables: Table[] = [
+        {
+          id: 'users',
+          name: 'users',
+          columns: [
+            { name: 'id', type: 'int', is_pk: true, is_fk: false, is_unique: false, is_nullable: false },
+            { name: 'email', type: 'varchar(255)', is_pk: false, is_fk: false, is_unique: true, is_nullable: false },
+          ],
+        },
+        {
+          id: 'posts',
+          name: 'posts',
+          columns: [
+            { name: 'id', type: 'int', is_pk: true, is_fk: false, is_unique: false, is_nullable: false },
+            { name: 'user_id', type: 'int', is_pk: false, is_fk: true, is_unique: false, is_nullable: false },
+          ],
+        },
+      ];
+
+      const relationships: Relationship[] = [
+        {
+          id: 'rel1',
+          source_table: 'posts',
+          source_column: 'user_id',
+          target_table: 'users',
+          target_column: 'id',
+        },
+      ];
+
+      const mermaid = generateMermaidErDiagram(tables, relationships);
+      expect(mermaid).toContain('erDiagram');
+      expect(mermaid).toContain('users ||--o{ posts : "user_id -> id"');
+      expect(mermaid).toContain('users {');
+      expect(mermaid).toContain('int id PK');
+      expect(mermaid).toContain('varchar_255_ email UK');
+      expect(mermaid).toContain('posts {');
+      expect(mermaid).toContain('int user_id FK');
+    });
+  });
+
+  describe('encodeDraftToHash and decodeDraftFromHash', () => {
+    it('round-trips draft schema text accurately through URL-safe hash', () => {
+      const text = `users\n  id int pk\n  email varchar unique\n\nposts\n  id int pk\n  user_id int -> users.id`;
+      const encoded = encodeDraftToHash(text);
+      expect(encoded).not.toContain('+');
+      expect(encoded).not.toContain('/');
+      expect(encoded).not.toContain('=');
+
+      const decoded = decodeDraftFromHash(encoded);
+      expect(decoded).toBe(text);
     });
   });
 });

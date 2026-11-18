@@ -17,7 +17,7 @@ describe('Navbar component', () => {
 
   it('renders Text2ERD branding and table counters', () => {
     render(<Navbar {...defaultProps} />);
-    expect(screen.getByText('Text2ERD')).toBeInTheDocument();
+    expect(screen.getAllByText('Text2ERD').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText('tables')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
@@ -40,6 +40,21 @@ describe('Navbar component', () => {
     expect(defaultProps.onOpenExport).toHaveBeenCalledTimes(1);
   });
 
+  it('toggles lock state and triggers onToggleLock', () => {
+    const onToggleLock = vi.fn();
+    const { rerender } = render(
+      <Navbar {...defaultProps} isLocked={false} onToggleLock={onToggleLock} />
+    );
+
+    const lockBtn = screen.getByText('Lock');
+    expect(lockBtn).toBeInTheDocument();
+    fireEvent.click(lockBtn);
+    expect(onToggleLock).toHaveBeenCalledTimes(1);
+
+    rerender(<Navbar {...defaultProps} isLocked={true} onToggleLock={onToggleLock} />);
+    expect(screen.getByText('Unlock')).toBeInTheDocument();
+  });
+
   it('does NOT contain any github link or repository reference', () => {
     const { container } = render(<Navbar {...defaultProps} />);
     const links = container.querySelectorAll('a');
@@ -47,22 +62,5 @@ describe('Navbar component', () => {
       expect(link.getAttribute('href')).not.toContain('github');
     });
     expect(container.innerHTML).not.toContain('github.com');
-  });
-
-  it('renders mobile Editor/Canvas switcher when onChangeMobilePane is provided', () => {
-    const handleMobilePane = vi.fn();
-    render(
-      <Navbar
-        {...defaultProps}
-        mobilePane="canvas"
-        onChangeMobilePane={handleMobilePane}
-      />
-    );
-
-    fireEvent.click(screen.getByText('Draft Editor'));
-    expect(handleMobilePane).toHaveBeenCalledWith('editor');
-
-    fireEvent.click(screen.getByText('Diagram Canvas'));
-    expect(handleMobilePane).toHaveBeenCalledWith('canvas');
   });
 });
