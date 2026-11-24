@@ -157,18 +157,18 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
             Write a table name, then indent column definitions:
           </p>
           <pre className="rounded-lg bg-white p-2.5 font-mono text-[11px] text-slate-800 leading-relaxed border border-green-200 shadow-2xs overflow-x-auto">
-{`users
+{`users [color: blue]
   id int pk
   email varchar(255) unique not null
   created_at timestamp
 
-posts
+posts [color: amber]
   id int pk
   user_id int -> users.id
   title varchar(200)`}
           </pre>
           <p className="text-[11px] text-slate-600">
-            Link foreign keys using <code className="font-mono text-green-800 bg-green-100 px-1 py-0.5 rounded">-&gt; table.col</code>.
+            Link foreign keys with <code className="font-mono text-green-800 bg-green-100 px-1 py-0.5 rounded">-&gt; table.col</code> and color-code tables with <code className="font-mono text-green-800 bg-green-100 px-1 py-0.5 rounded">[color: blue]</code>.
           </p>
         </div>
       )}

@@ -5,11 +5,70 @@ from sqlparse.sql import IdentifierList, Identifier, Function, Parenthesis
 from sqlparse.tokens import Keyword, DML, DDL
 
 
+COLOR_ALIASES: Dict[str, str] = {
+    "emerald": "emerald",
+    "green": "emerald",
+    "#16a34a": "emerald",
+    "#10b981": "emerald",
+    "blue": "blue",
+    "sky": "blue",
+    "#0284c7": "blue",
+    "#2563eb": "blue",
+    "#3b82f6": "blue",
+    "indigo": "indigo",
+    "violet": "indigo",
+    "purple": "indigo",
+    "#4f46e5": "indigo",
+    "#6366f1": "indigo",
+    "cyan": "cyan",
+    "teal": "cyan",
+    "#0891b2": "cyan",
+    "#0d9488": "cyan",
+    "amber": "amber",
+    "yellow": "amber",
+    "gold": "amber",
+    "#d97706": "amber",
+    "#f59e0b": "amber",
+    "orange": "orange",
+    "#ea580c": "orange",
+    "#f97316": "orange",
+    "rose": "rose",
+    "red": "rose",
+    "pink": "rose",
+    "#e11d48": "rose",
+    "#ef4444": "rose",
+    "slate": "slate",
+    "gray": "slate",
+    "grey": "slate",
+    "#475569": "slate",
+    "#64748b": "slate",
+}
+
+COLOR_HEX_MAP: Dict[str, str] = {
+    "emerald": "#16a34a",
+    "blue": "#0284c7",
+    "indigo": "#4f46e5",
+    "cyan": "#0891b2",
+    "amber": "#d97706",
+    "orange": "#ea580c",
+    "rose": "#e11d48",
+    "slate": "#475569",
+}
+
+
+def _extract_table_color(bracket_content: Optional[str]) -> Optional[str]:
+    if not bracket_content:
+        return None
+    attr_match = re.search(r"(?:headercolor|color)\s*:\s*([#a-zA-Z0-9_]+)", bracket_content, re.IGNORECASE)
+    candidate = attr_match.group(1) if attr_match else bracket_content.strip()
+    return COLOR_ALIASES.get(candidate.strip().lower())
+
+
 def parse_draft_text(text: str) -> Dict[str, Any]:
     """
     Parses intuitive drafting text into structured tables and relationships.
     Supports formats like:
-      users
+      users [color: blue]
         id int pk
         email varchar(255) unique
         name varchar(100)
@@ -57,23 +116,33 @@ def parse_draft_text(text: str) -> Dict[str, Any]:
             continue
 
         # Check if line indicates a table definition:
-        # e.g. "users", "Table users", "Table users {", "users:"
-        table_match = re.match(r"^(?:table\s+)?([a-zA-Z0-9_]+)\s*[:{]?$", line, re.IGNORECASE)
+        # e.g. "users", "users [color: blue]", "Table users {", "users:"
+        table_match = re.match(
+            r"^(?:table\s+)?([a-zA-Z0-9_]+)(?:\s*\[([^\]]+)\])?\s*[:{]?$",
+            line,
+            re.IGNORECASE,
+        )
         # It's a table header if it matches and either has no indentation in raw_line or starts with "table "
         is_indented = len(raw_line) - len(raw_line.lstrip()) > 0
         
-        # If it looks like a single word without data type, or begins with "Table "
+        # If it looks like a single word without data type, begins with "Table ", or has a valid [color] tag
         tokens = line.split()
-        if (table_match and (not is_indented or line.lower().startswith("table "))) or (len(tokens) == 1 and not line.endswith("}")):
+        parsed_color = _extract_table_color(table_match.group(2)) if table_match else None
+        if (table_match and (not is_indented or line.lower().startswith("table ") or parsed_color is not None)) or (len(tokens) == 1 and not line.endswith("}")):
             tbl_name = table_match.group(1) if table_match else tokens[0].rstrip(":{")
             if tbl_name.lower() not in ("}", "{"):
                 current_table = tbl_name
                 if current_table not in tables:
-                    tables[current_table] = {
+                    tbl_entry: Dict[str, Any] = {
                         "id": current_table,
                         "name": current_table,
                         "columns": []
                     }
+                    if parsed_color:
+                        tbl_entry["color"] = parsed_color
+                    tables[current_table] = tbl_entry
+                elif parsed_color:
+                    tables[current_table]["color"] = parsed_color
                 continue
 
         if line == "}":
@@ -498,3 +567,237 @@ def generate_sql_ddl(tables: List[Dict[str, Any]], relationships: List[Dict[str,
             )
 
     return "\n".join(sql_lines).strip() + "\n"
+
+
+def _to_pascal_case(raw: str) -> str:
+    words = [w for w in re.sub(r"[^a-zA-Z0-9]+", " ", raw).strip().split() if w]
+    if not words:
+        return "Model"
+    joined = "".join(w[0].upper() + w[1:] for w in words)
+    return f"Model{joined}" if joined[0].isdigit() else joined
+
+
+def _to_camel_case(raw: str) -> str:
+    pascal = _to_pascal_case(raw)
+    return pascal[0].lower() + pascal[1:]
+
+
+def _map_sql_to_prisma(raw_type: str) -> Tuple[str, Optional[str], bool, bool]:
+    t = (raw_type or "varchar").strip().lower()
+    if t in ("serial", "smallserial"):
+        return ("Int", None, True, False)
+    if t == "bigserial":
+        return ("BigInt", None, True, False)
+    if re.match(r"^(int|integer|smallint|tinyint|mediumint|int2|int4)\b", t):
+        return ("Int", None, False, False)
+    if re.match(r"^(bigint|int8)\b", t):
+        return ("BigInt", None, False, False)
+    if re.match(r"^(decimal|numeric|money)", t):
+        return ("Decimal", None, False, False)
+    if re.match(r"^(float|double|real)", t):
+        return ("Float", None, False, False)
+    if re.match(r"^(bool|boolean)\b", t):
+        return ("Boolean", None, False, False)
+    if re.match(r"^uuid\b", t):
+        return ("String", "@db.Uuid", False, True)
+    if re.match(r"^(timestamp|timestamptz|datetime|date|time)", t):
+        return ("DateTime", None, False, False)
+    if re.match(r"^(json|jsonb)\b", t):
+        return ("Json", None, False, False)
+    return ("String", None, False, False)
+
+
+def generate_prisma_schema(tables: List[Dict[str, Any]], relationships: List[Dict[str, Any]]) -> str:
+    lines: List[str] = [
+        "// =============================================",
+        "// Prisma Schema",
+        "// Generated by Text2ERD",
+        "// =============================================",
+        "",
+        "datasource db {",
+        '  provider = "postgresql"',
+        '  url      = env("DATABASE_URL")',
+        "}",
+        "",
+        "generator client {",
+        '  provider = "prisma-client-js"',
+        "}",
+        "",
+    ]
+
+    table_map: Dict[str, Dict[str, Any]] = {}
+    model_names: Dict[str, str] = {}
+    used_models = set()
+
+    for tbl in tables:
+        t_name = tbl.get("name") or tbl.get("id") or "table"
+        table_map[t_name] = tbl
+        base_model = _to_pascal_case(t_name)
+        candidate = base_model
+        idx = 2
+        while candidate in used_models:
+            candidate = f"{base_model}{idx}"
+            idx += 1
+        used_models.add(candidate)
+        model_names[t_name] = candidate
+
+    valid_rels = [
+        r for r in relationships
+        if r.get("source_table") in table_map and r.get("target_table") in table_map
+    ]
+
+    pair_counts: Dict[str, int] = {}
+    for rel in valid_rels:
+        pair_key = "::".join(sorted([rel["source_table"], rel["target_table"]]))
+        pair_counts[pair_key] = pair_counts.get(pair_key, 0) + 1
+
+    for tbl in tables:
+        t_name = tbl.get("name") or tbl.get("id") or "table"
+        model_name = model_names[t_name]
+        lines.append(f"model {model_name} {{")
+
+        cols = tbl.get("columns", [])
+        pks = [c["name"] for c in cols if c.get("is_pk")]
+        has_composite_pk = len(pks) > 1
+        used_fields = {c["name"] for c in cols}
+
+        for col in cols:
+            c_name = col.get("name", "col")
+            scalar, db_attr, is_auto_int, is_uuid = _map_sql_to_prisma(col.get("type", "varchar"))
+            is_pk = bool(col.get("is_pk"))
+            is_nullable = bool(col.get("is_nullable", True)) and not is_pk
+            type_token = f"{scalar}{'?' if is_nullable else ''}"
+            attrs: List[str] = []
+
+            if is_pk and not has_composite_pk:
+                attrs.append("@id")
+                if is_uuid:
+                    attrs.append("@default(uuid())")
+                elif is_auto_int or scalar in ("Int", "BigInt"):
+                    attrs.append("@default(autoincrement())")
+
+            if col.get("is_unique") and not is_pk:
+                attrs.append("@unique")
+
+            if scalar == "DateTime" and c_name.lower() == "created_at":
+                attrs.append("@default(now())")
+
+            if db_attr:
+                attrs.append(db_attr)
+
+            attr_str = (" " + " ".join(attrs)) if attrs else ""
+            lines.append(f"  {c_name} {type_token}{attr_str}")
+
+        outgoing = [r for r in valid_rels if r["source_table"] == t_name]
+        for rel in outgoing:
+            tgt_tbl = rel["target_table"]
+            src_col = rel["source_column"]
+            tgt_col = rel["target_column"]
+            target_model = model_names[tgt_tbl]
+            src_col_obj = next((c for c in cols if c.get("name") == src_col), None)
+            is_opt_rel = bool(src_col_obj.get("is_nullable", True)) and not bool(src_col_obj.get("is_pk")) if src_col_obj else False
+            pair_key = "::".join(sorted([t_name, tgt_tbl]))
+            needs_name = pair_counts.get(pair_key, 0) > 1 or t_name == tgt_tbl
+            rel_name = f"{t_name}_{src_col}_to_{tgt_tbl}"
+
+            stripped_col = re.sub(r"_id$", "", src_col, flags=re.IGNORECASE)
+            field_base = _to_camel_case(f"{stripped_col}_{tgt_tbl}") if needs_name else _to_camel_case(tgt_tbl)
+            if not field_base or field_base in used_fields:
+                field_base = _to_camel_case(f"{tgt_tbl}_{src_col}")
+            field_name = field_base
+            idx = 2
+            while field_name in used_fields:
+                field_name = f"{field_base}{idx}"
+                idx += 1
+            used_fields.add(field_name)
+
+            name_arg = f'"{rel_name}", ' if needs_name else ""
+            opt_mark = "?" if is_opt_rel else ""
+            lines.append(
+                f"  {field_name} {target_model}{opt_mark} @relation({name_arg}fields: [{src_col}], references: [{tgt_col}], onDelete: Cascade)"
+            )
+
+        incoming = [r for r in valid_rels if r["target_table"] == t_name]
+        for rel in incoming:
+            src_tbl = rel["source_table"]
+            src_col = rel["source_column"]
+            source_model = model_names[src_tbl]
+            pair_key = "::".join(sorted([src_tbl, t_name]))
+            needs_name = pair_counts.get(pair_key, 0) > 1 or src_tbl == t_name
+            rel_name = f"{src_tbl}_{src_col}_to_{t_name}"
+
+            field_base = _to_camel_case(f"{src_tbl}_{src_col}") if needs_name else _to_camel_case(src_tbl)
+            if not field_base or field_base in used_fields:
+                field_base = _to_camel_case(f"{src_tbl}_list")
+            field_name = field_base
+            idx = 2
+            while field_name in used_fields:
+                field_name = f"{field_base}{idx}"
+                idx += 1
+            used_fields.add(field_name)
+
+            rel_attr = f' @relation("{rel_name}")' if needs_name else ""
+            lines.append(f"  {field_name} {source_model}[]{rel_attr}")
+
+        if has_composite_pk:
+            lines.append("")
+            lines.append(f"  @@id([{', '.join(pks)}])")
+
+        if model_name != t_name:
+            lines.append(f'  @@map("{t_name}")')
+
+        lines.append("}")
+        lines.append("")
+
+    return "\n".join(lines).strip() + "\n"
+
+
+def generate_dbml_schema(tables: List[Dict[str, Any]], relationships: List[Dict[str, Any]]) -> str:
+    lines: List[str] = [
+        "// =============================================",
+        "// Database Schema (DBML)",
+        "// Generated by Text2ERD",
+        "// =============================================",
+        "",
+    ]
+
+    for tbl in tables:
+        t_name = tbl.get("name") or tbl.get("id") or "table"
+        raw_color = tbl.get("color")
+        normalized_color = COLOR_ALIASES.get(str(raw_color).lower()) if raw_color else None
+        header_setting = f" [headercolor: {COLOR_HEX_MAP[normalized_color]}]" if normalized_color in COLOR_HEX_MAP else ""
+        lines.append(f"Table {t_name}{header_setting} {{")
+
+        cols = tbl.get("columns", [])
+        pks = [c["name"] for c in cols if c.get("is_pk")]
+        has_composite_pk = len(pks) > 1
+
+        for col in cols:
+            c_name = col.get("name", "col")
+            c_type = col.get("type") or "varchar(255)"
+            is_pk = bool(col.get("is_pk"))
+            settings: List[str] = []
+            if is_pk and not has_composite_pk:
+                settings.append("pk")
+            if col.get("is_unique") and not is_pk:
+                settings.append("unique")
+            if not col.get("is_nullable", True) and not is_pk:
+                settings.append("not null")
+            setting_str = f" [{', '.join(settings)}]" if settings else ""
+            lines.append(f"  {c_name} {c_type}{setting_str}")
+
+        if has_composite_pk:
+            lines.append("")
+            lines.append("  Indexes {")
+            lines.append(f"    ({', '.join(pks)}) [pk]")
+            lines.append("  }")
+
+        lines.append("}")
+        lines.append("")
+
+    for rel in relationships:
+        lines.append(
+            f"Ref: {rel.get('source_table')}.{rel.get('source_column')} > {rel.get('target_table')}.{rel.get('target_column')} [delete: cascade]"
+        )
+
+    return "\n".join(lines).strip() + "\n"

@@ -14,6 +14,8 @@ import {
   faCheck,
   faLock,
   faLockOpen,
+  faMagnifyingGlass,
+  faImage,
 } from '@fortawesome/free-solid-svg-icons';
 
 interface NavbarProps {
@@ -21,6 +23,8 @@ interface NavbarProps {
   onAutoLayout: () => void;
   onOpenImport: () => void;
   onOpenExport: () => void;
+  onOpenImageExport?: () => void;
+  onOpenSearch?: () => void;
   onShare?: () => void;
   shareCopied?: boolean;
   isLocked?: boolean;
@@ -39,6 +43,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onAutoLayout,
   onOpenImport,
   onOpenExport,
+  onOpenImageExport,
+  onOpenSearch,
   onShare,
   shareCopied = false,
   isLocked = false,
@@ -88,7 +94,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </span>
           </div>
 
-          <div className="hidden lg:flex items-center gap-2 text-xs text-slate-500 border-l border-slate-200 pl-3 shrink-0">
+          <div className="hidden xl:flex items-center gap-2 text-xs text-slate-500 border-l border-slate-200 pl-3 shrink-0">
             <span className="font-medium text-slate-700">{tableCount}</span>
             <span>tables</span>
             <span>•</span>
@@ -99,6 +105,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {onOpenSearch && (
+            <button
+              type="button"
+              onClick={onOpenSearch}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer shadow-xs"
+              title="Quick search tables & columns (Cmd+K)"
+            >
+              <FontAwesomeIcon icon={faMagnifyingGlass} className="text-slate-400 text-xs" />
+              <span className="hidden lg:inline">Search</span>
+              <kbd className="hidden md:inline-block rounded bg-white px-1.5 py-0.2 text-[10px] font-mono text-slate-500 border border-slate-200">
+                ⌘K
+              </kbd>
+            </button>
+          )}
+
           <button
             onClick={onAddTable}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer shadow-xs"
@@ -114,7 +135,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             title="Auto arrange nodes using Dagre"
           >
             <FontAwesomeIcon icon={faTableCells} className="text-slate-500 text-xs" />
-            <span className="hidden sm:inline">Auto Layout</span>
+            <span className="hidden lg:inline">Auto Layout</span>
           </button>
 
           {onToggleLock && (
@@ -131,7 +152,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 icon={isLocked ? faLock : faLockOpen}
                 className={isLocked ? 'text-white text-xs' : 'text-slate-500 text-xs'}
               />
-              <span className="hidden sm:inline">{isLocked ? 'Unlock' : 'Lock'}</span>
+              <span className="hidden lg:inline">{isLocked ? 'Unlock' : 'Lock'}</span>
             </button>
           )}
 
@@ -143,13 +164,25 @@ export const Navbar: React.FC<NavbarProps> = ({
             title="Import SQL DDL"
           >
             <FontAwesomeIcon icon={faFileImport} className="text-green-600 text-xs" />
-            <span>Import SQL</span>
+            <span className="hidden sm:inline">Import SQL</span>
           </button>
+
+          {onOpenImageExport && (
+            <button
+              type="button"
+              onClick={onOpenImageExport}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer shadow-xs"
+              title="Export high-resolution PNG or SVG diagram snapshot"
+            >
+              <FontAwesomeIcon icon={faImage} className="text-green-600 text-xs" />
+              <span className="hidden md:inline">PNG/SVG</span>
+            </button>
+          )}
 
           <button
             onClick={onOpenExport}
             className="flex items-center gap-1.5 rounded-lg bg-green-600 px-2.5 sm:px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-green-700 transition-colors cursor-pointer"
-            title="Export SQL DDL or Mermaid diagram"
+            title="Export SQL DDL, Prisma, DBML, Mermaid, or PNG/SVG"
           >
             <FontAwesomeIcon icon={faFileExport} className="text-xs" />
             <span>Export SQL</span>

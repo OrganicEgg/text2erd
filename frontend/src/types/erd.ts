@@ -7,10 +7,21 @@ export interface Column {
   is_nullable?: boolean;
 }
 
+export type TableColorKey =
+  | 'emerald'
+  | 'blue'
+  | 'indigo'
+  | 'cyan'
+  | 'amber'
+  | 'orange'
+  | 'rose'
+  | 'slate';
+
 export interface Table {
   id: string;
   name: string;
   columns: Column[];
+  color?: TableColorKey;
 }
 
 export interface Relationship {
@@ -32,4 +43,5 @@ export interface TableNodeData extends Record<string, unknown> {
   onUpdateTable: (tableId: string, updated: Table) => void;
   onDeleteTable: (tableId: string) => void;
   isLocked?: boolean;
+  isHighlighted?: boolean;
 }

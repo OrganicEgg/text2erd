@@ -3,7 +3,13 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.cache import cache
 from rest_framework.test import APIClient
 from rest_framework import status
-from .parser import parse_draft_text, parse_sql_ddl, generate_sql_ddl
+from .parser import (
+    parse_draft_text,
+    parse_sql_ddl,
+    generate_sql_ddl,
+    generate_prisma_schema,
+    generate_dbml_schema,
+)
 
 
 class ParserUnitTests(TestCase):
@@ -248,4 +254,54 @@ class ApiEndpointsTestCase(TestCase):
         self.assertEqual(resp.headers.get("X-Content-Type-Options"), "nosniff")
         self.assertEqual(resp.headers.get("X-Frame-Options"), "DENY")
         self.assertEqual(resp.headers.get("Cross-Origin-Opener-Policy"), "same-origin")
+
+    def test_v1_1_table_colors_and_prisma_dbml_exports(self):
+        draft = """
+        users [color: blue]
+          id uuid pk
+          email varchar(255) unique not null
+
+        posts [amber]
+          id int pk
+          user_id uuid not null -> users.id
+        """
+        parsed = parse_draft_text(draft)
+        self.assertEqual(parsed["tables"][0].get("color"), "blue")
+        self.assertEqual(parsed["tables"][1].get("color"), "amber")
+
+        prisma_out = generate_prisma_schema(parsed["tables"], parsed["relationships"])
+        self.assertIn("model Users {", prisma_out)
+        self.assertIn("@default(uuid())", prisma_out)
+        self.assertIn("model Posts {", prisma_out)
+
+        dbml_out = generate_dbml_schema(parsed["tables"], parsed["relationships"])
+        self.assertIn("Table users [headercolor: #0284c7] {", dbml_out)
+        self.assertIn("Ref: posts.user_id > users.id [delete: cascade]", dbml_out)
+
+        # Verify /api/export-sql/ endpoint for prisma & dbml dialects
+        resp_prisma = self.client.post(
+            "/api/export-sql/",
+            {
+                "tables": parsed["tables"],
+                "relationships": parsed["relationships"],
+                "dialect": "prisma",
+            },
+            format="json",
+        )
+        self.assertEqual(resp_prisma.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_prisma.json()["dialect"], "prisma")
+        self.assertIn("datasource db {", resp_prisma.json()["sql"])
+
+        resp_dbml = self.client.post(
+            "/api/export-sql/",
+            {
+                "tables": parsed["tables"],
+                "relationships": parsed["relationships"],
+                "dialect": "dbml",
+            },
+            format="json",
+        )
+        self.assertEqual(resp_dbml.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_dbml.json()["dialect"], "dbml")
+        self.assertIn("Table users [headercolor: #0284c7]", resp_dbml.json()["sql"])
 
