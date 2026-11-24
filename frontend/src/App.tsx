@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   ReactFlow,
   Controls,
@@ -10,16 +10,19 @@ import {
   MarkerType,
   BackgroundVariant,
 } from '@xyflow/react';
-import type { Connection, Edge, Node } from '@xyflow/react';
+import type { Connection, Edge, Node, ReactFlowInstance } from '@xyflow/react';
 import { TableNode } from './components/TableNode';
 import { Navbar } from './components/Navbar';
 import { NotepadEditor } from './components/NotepadEditor';
 import { ExportModal } from './components/ExportModal';
+import type { ExportFormat } from './components/ExportModal';
 import { ImportModal } from './components/ImportModal';
+import { QuickSearchModal } from './components/QuickSearchModal';
 import { LandingPage } from './components/LandingPage';
 import type { Table, Relationship, DiagramData, TableNodeData } from './types/erd';
 import { getLayoutedElements } from './utils/layout';
 import { TEMPLATES } from './utils/templates';
+import { getTableColorTheme, syncTableColorInDraft } from './utils/tableColors';
 import {
   parseDraftTextClient,
   encodeDraftToHash,
@@ -34,7 +37,10 @@ const MAX_TABLES_LIMIT = 150;
 
 export function App() {
   const [currentView, setCurrentView] = useState<'landing' | 'app'>(() => {
-    if (typeof window !== 'undefined' && (window.location.hash.startsWith('#draft=') || window.location.hash === '#app')) {
+    if (
+      typeof window !== 'undefined' &&
+      (window.location.hash.startsWith('#draft=') || window.location.hash === '#app')
+    ) {
       return 'app';
     }
     return 'landing';
@@ -73,15 +79,36 @@ export function App() {
   const [isEditorOpen, setIsEditorOpen] = useState(true);
   const [mobilePane, setMobilePane] = useState<'editor' | 'canvas'>('canvas');
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [exportInitialFormat, setExportInitialFormat] = useState<ExportFormat>('postgres');
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCanvasLocked, setIsCanvasLocked] = useState(false);
+  const [highlightedTableId, setHighlightedTableId] = useState<string | null>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [rfInstance, setRfInstance] = useState<ReactFlowInstance<Node<TableNodeData>, Edge> | null>(
+    null
+  );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<TableNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const nodeTypes = useMemo(() => ({ tableNode: TableNode }), []);
 
-  // Sync canvas lock state to all nodes
+  // Global Cmd+K / Ctrl+K shortcut for Quick Search in Studio mode
+  useEffect(() => {
+    if (currentView !== 'app') return;
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [currentView]);
+
+  // Sync canvas lock & search highlight state to all nodes
   useEffect(() => {
     setNodes((nds) =>
       nds.map((node) => ({
@@ -89,10 +116,11 @@ export function App() {
         data: {
           ...node.data,
           isLocked: isCanvasLocked,
+          isHighlighted: node.id === highlightedTableId,
         },
       }))
     );
-  }, [isCanvasLocked, setNodes]);
+  }, [isCanvasLocked, highlightedTableId, setNodes]);
 
   // Persist draft in localStorage (ephemeral client-only convenience)
   useEffect(() => {
@@ -107,38 +135,69 @@ export function App() {
     }
   }, [draftText]);
 
-  // Update a single table from canvas interactions (rename, add col, delete col)
-  const handleUpdateTable = useCallback((tableId: string, updatedTable: Table) => {
-    setTables((prev) =>
-      prev.map((t) => (t.id === tableId || t.name === tableId ? updatedTable : t))
-    );
-    setNodes((nds) =>
-      nds.map((node) => {
-        if (node.id === tableId) {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              table: updatedTable,
-            },
-          };
-        }
-        return node;
-      })
-    );
-  }, [setNodes]);
+  // Update a single table from canvas interactions (rename, color picker, add/delete col)
+  const handleUpdateTable = useCallback(
+    (tableId: string, updatedTable: Table) => {
+      setTables((prev) =>
+        prev.map((t) => (t.id === tableId || t.name === tableId ? updatedTable : t))
+      );
+      setNodes((nds) =>
+        nds.map((node) => {
+          if (node.id === tableId) {
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                table: updatedTable,
+              },
+            };
+          }
+          return node;
+        })
+      );
+      setDraftText((prevDraft) => syncTableColorInDraft(prevDraft, tableId, updatedTable.color));
+    },
+    [setNodes]
+  );
 
   // Delete a table from canvas
-  const handleDeleteTable = useCallback((tableId: string) => {
-    setTables((prev) => prev.filter((t) => t.id !== tableId && t.name !== tableId));
-    setRelationships((prev) =>
-      prev.filter((r) => r.source_table !== tableId && r.target_table !== tableId)
-    );
-    setNodes((nds) => nds.filter((node) => node.id !== tableId));
-    setEdges((eds) =>
-      eds.filter((edge) => edge.source !== tableId && edge.target !== tableId)
-    );
-  }, [setNodes, setEdges]);
+  const handleDeleteTable = useCallback(
+    (tableId: string) => {
+      setTables((prev) => prev.filter((t) => t.id !== tableId && t.name !== tableId));
+      setRelationships((prev) =>
+        prev.filter((r) => r.source_table !== tableId && r.target_table !== tableId)
+      );
+      setNodes((nds) => nds.filter((node) => node.id !== tableId));
+      setEdges((eds) => eds.filter((edge) => edge.source !== tableId && edge.target !== tableId));
+    },
+    [setNodes, setEdges]
+  );
+
+  // Focus & highlight a table selected from Quick Search (Cmd+K)
+  const handleFocusTable = useCallback(
+    (tableId: string) => {
+      setMobilePane('canvas');
+      setHighlightedTableId(tableId);
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+      }
+      highlightTimeoutRef.current = setTimeout(() => {
+        setHighlightedTableId(null);
+      }, 2800);
+
+      setTimeout(() => {
+        if (rfInstance) {
+          rfInstance.fitView({
+            nodes: [{ id: tableId }],
+            duration: 450,
+            maxZoom: 1.35,
+            padding: 0.4,
+          });
+        }
+      }, 30);
+    },
+    [rfInstance]
+  );
 
   // Build React Flow nodes and edges from DiagramData
   const buildGraphElements = useCallback(
@@ -152,6 +211,7 @@ export function App() {
           onUpdateTable: handleUpdateTable,
           onDeleteTable: handleDeleteTable,
           isLocked: isCanvasLocked,
+          isHighlighted: false,
         },
       }));
 
@@ -228,7 +288,9 @@ export function App() {
         if (resp.ok) {
           const data: DiagramData = await resp.json();
           if (data.tables.length > MAX_TABLES_LIMIT) {
-            setDraftError(`Schema exceeds the ${MAX_TABLES_LIMIT}-table limit (${data.tables.length} found).`);
+            setDraftError(
+              `Schema exceeds the ${MAX_TABLES_LIMIT}-table limit (${data.tables.length} found).`
+            );
             setLoading(false);
             return;
           }
@@ -246,7 +308,9 @@ export function App() {
       try {
         const clientData = parseDraftTextClient(textToParse);
         if (clientData.tables.length > MAX_TABLES_LIMIT) {
-          setDraftError(`Schema exceeds the ${MAX_TABLES_LIMIT}-table limit (${clientData.tables.length} found).`);
+          setDraftError(
+            `Schema exceeds the ${MAX_TABLES_LIMIT}-table limit (${clientData.tables.length} found).`
+          );
           return;
         }
         applyDiagramData(clientData);
@@ -284,6 +348,14 @@ export function App() {
   const handleNavigateHome = useCallback(() => {
     setCurrentView('landing');
     window.location.hash = '';
+  }, []);
+
+  const handleOpenExport = useCallback((format: ExportFormat = 'postgres') => {
+    if (format === 'png' || format === 'svg') {
+      setMobilePane('canvas');
+    }
+    setExportInitialFormat(format);
+    setIsExportOpen(true);
   }, []);
 
   // Connection created by dragging handle to handle
@@ -340,9 +412,7 @@ export function App() {
     const newTbl: Table = {
       id: newTableName,
       name: newTableName,
-      columns: [
-        { name: 'id', type: 'int', is_pk: true, is_nullable: false, is_unique: false },
-      ],
+      columns: [{ name: 'id', type: 'int', is_pk: true, is_nullable: false, is_unique: false }],
     };
 
     setTables((prev) => [...prev, newTbl]);
@@ -356,6 +426,7 @@ export function App() {
         onUpdateTable: handleUpdateTable,
         onDeleteTable: handleDeleteTable,
         isLocked: isCanvasLocked,
+        isHighlighted: false,
       },
     };
 
@@ -390,7 +461,8 @@ export function App() {
       // Recreate draft text representation
       const lines: string[] = [];
       data.tables.forEach((t) => {
-        lines.push(t.name);
+        const colorTag = t.color && t.color !== 'emerald' ? ` [color: ${t.color}]` : '';
+        lines.push(`${t.name}${colorTag}`);
         t.columns.forEach((c) => {
           let line = `  ${c.name} ${c.type}`;
           if (c.is_pk) line += ' pk';
@@ -427,7 +499,9 @@ export function App() {
         onAddTable={handleAddTable}
         onAutoLayout={handleAutoLayout}
         onOpenImport={() => setIsImportOpen(true)}
-        onOpenExport={() => setIsExportOpen(true)}
+        onOpenExport={() => handleOpenExport('postgres')}
+        onOpenImageExport={() => handleOpenExport('png')}
+        onOpenSearch={() => setIsSearchOpen(true)}
         onShare={handleShare}
         shareCopied={shareCopied}
         isLocked={isCanvasLocked}
@@ -482,7 +556,10 @@ export function App() {
               </div>
               <div className="text-xs font-medium tracking-wide">
                 <span className="font-semibold text-amber-300">Canvas Locked</span>
-                <span className="text-slate-300 hidden sm:inline"> — Visualizer is frozen (pan & zoom active)</span>
+                <span className="text-slate-300 hidden sm:inline">
+                  {' '}
+                  — Visualizer is frozen (pan &amp; zoom active)
+                </span>
               </div>
               <button
                 type="button"
@@ -499,6 +576,7 @@ export function App() {
           <ReactFlow
             nodes={nodes}
             edges={edges}
+            onInit={setRfInstance}
             onNodesChange={isCanvasLocked ? undefined : onNodesChange}
             onEdgesChange={isCanvasLocked ? undefined : onEdgesChange}
             onConnect={onConnect}
@@ -525,7 +603,10 @@ export function App() {
             />
             <Controls className="!bg-white !border-slate-200 !rounded-xl !shadow-md !overflow-hidden [&>button]:!bg-white [&>button]:!border-slate-200 [&>button]:!text-slate-600 [&>button:hover]:!bg-slate-100" />
             <MiniMap
-              nodeColor="#16a34a"
+              nodeColor={(node) => {
+                const nodeData = node.data as TableNodeData | undefined;
+                return getTableColorTheme(nodeData?.table?.color).hex;
+              }}
               maskColor="rgba(241, 245, 249, 0.7)"
               className="hidden sm:block !bg-white/90 !border-slate-200 !rounded-xl !shadow-md"
             />
@@ -539,12 +620,22 @@ export function App() {
         onClose={() => setIsExportOpen(false)}
         tables={tables}
         relationships={relationships}
+        nodes={nodes}
+        rfInstance={rfInstance}
+        initialFormat={exportInitialFormat}
       />
 
       <ImportModal
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
         onImportSuccess={handleImportSuccess}
+      />
+
+      <QuickSearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        tables={tables}
+        onSelectTable={handleFocusTable}
       />
     </div>
   );

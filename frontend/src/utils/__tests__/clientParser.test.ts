@@ -4,9 +4,12 @@ import {
   generateSqlDdlClient,
   parseSqlDdlClient,
   generateMermaidErDiagram,
+  generatePrismaSchema,
+  generateDbmlSchema,
   encodeDraftToHash,
   decodeDraftFromHash,
 } from '../clientParser';
+import { syncTableColorInDraft } from '../tableColors';
 import type { Table, Relationship } from '../../types/erd';
 
 describe('clientParser', () => {
@@ -214,6 +217,111 @@ CREATE TABLE orders (
 
       const decoded = decodeDraftFromHash(encoded);
       expect(decoded).toBe(text);
+    });
+  });
+
+  describe('Table color coding & syncTableColorInDraft', () => {
+    it('parses [color: ...] and [headercolor: ...] tags on table headers', () => {
+      const draft = `
+users [color: blue]
+  id int pk
+
+invoices [amber]
+  id uuid pk
+
+Table audit_logs [headercolor: #e11d48] {
+  id int pk
+}
+`;
+      const result = parseDraftTextClient(draft);
+      expect(result.tables).toHaveLength(3);
+      expect(result.tables[0].color).toBe('blue');
+      expect(result.tables[1].color).toBe('amber');
+      expect(result.tables[2].color).toBe('rose');
+    });
+
+    it('syncs table color tags two-way in shorthand draft text', () => {
+      const initial = `users\n  id int pk\n\nposts\n  id int pk`;
+      const colored = syncTableColorInDraft(initial, 'users', 'blue');
+      expect(colored).toContain('users [color: blue]');
+
+      const updated = syncTableColorInDraft(colored, 'users', 'rose');
+      expect(updated).toContain('users [color: rose]');
+      expect(updated).not.toContain('blue');
+
+      const reset = syncTableColorInDraft(updated, 'users', 'emerald');
+      expect(reset).toBe(initial);
+    });
+  });
+
+  describe('generatePrismaSchema', () => {
+    it('generates valid Prisma schema with models, @@map, and disambiguated multi-FK relations', () => {
+      const draft = `
+wallets
+  id uuid pk
+  balance decimal(18,4) not null
+
+order_items
+  order_id int pk
+  product_id int pk
+
+transactions
+  id uuid pk
+  sender_wallet_id uuid not null -> wallets.id
+  recipient_wallet_id uuid not null -> wallets.id
+  created_at timestamp not null
+`;
+      const { tables, relationships } = parseDraftTextClient(draft);
+      const prisma = generatePrismaSchema(tables, relationships);
+
+      expect(prisma).toContain('datasource db {');
+      expect(prisma).toContain('generator client {');
+      expect(prisma).toContain('model Wallets {');
+      expect(prisma).toContain('id String @id @default(uuid()) @db.Uuid');
+      expect(prisma).toContain('@@map("wallets")');
+      expect(prisma).toContain('@@id([order_id, product_id])');
+      expect(prisma).toContain('@relation("transactions_sender_wallet_id_to_wallets"');
+      expect(prisma).toContain('@relation("transactions_recipient_wallet_id_to_wallets"');
+      expect(prisma).toContain('@default(now())');
+    });
+  });
+
+  describe('generateDbmlSchema', () => {
+    it('generates valid DBML with headercolor, column constraints, composite PKs, and Refs', () => {
+      const tables: Table[] = [
+        {
+          id: 'users',
+          name: 'users',
+          color: 'blue',
+          columns: [
+            { name: 'id', type: 'int', is_pk: true, is_nullable: false, is_unique: false },
+            { name: 'email', type: 'varchar(255)', is_pk: false, is_nullable: false, is_unique: true },
+          ],
+        },
+        {
+          id: 'posts',
+          name: 'posts',
+          columns: [
+            { name: 'id', type: 'int', is_pk: true, is_nullable: false, is_unique: false },
+            { name: 'user_id', type: 'int', is_pk: false, is_nullable: false, is_unique: false, is_fk: true },
+          ],
+        },
+      ];
+      const relationships: Relationship[] = [
+        {
+          id: 'rel1',
+          source_table: 'posts',
+          source_column: 'user_id',
+          target_table: 'users',
+          target_column: 'id',
+        },
+      ];
+
+      const dbml = generateDbmlSchema(tables, relationships);
+      expect(dbml).toContain('Table users [headercolor: #0284c7] {');
+      expect(dbml).toContain('id int [pk]');
+      expect(dbml).toContain('email varchar(255) [unique, not null]');
+      expect(dbml).toContain('Ref: posts.user_id > users.id [delete: cascade]');
     });
   });
 });

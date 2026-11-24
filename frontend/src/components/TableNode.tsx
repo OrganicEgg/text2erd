@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
-import type { TableNodeData, Column } from '../types/erd';
+import type { TableNodeData, Column, TableColorKey } from '../types/erd';
+import { TABLE_COLOR_PALETTE, getTableColorTheme } from '../utils/tableColors';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faKey,
@@ -11,12 +12,14 @@ import {
   faPen,
   faCheck,
   faXmark,
+  faPalette,
 } from '@fortawesome/free-solid-svg-icons';
 
 export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
   const nodeData = data as unknown as TableNodeData;
   const { table, onUpdateTable, onDeleteTable } = nodeData;
   const isLocked = Boolean(nodeData.isLocked);
+  const isHighlighted = Boolean(nodeData.isHighlighted);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [tableNameInput, setTableNameInput] = useState(table.name);
@@ -24,13 +27,29 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
   const [newColName, setNewColName] = useState('');
   const [newColType, setNewColType] = useState('varchar(255)');
   const [newColPk, setNewColPk] = useState(false);
+  const [isColorOpen, setIsColorOpen] = useState(false);
+  const colorPopoverRef = useRef<HTMLDivElement>(null);
+
+  const colorTheme = getTableColorTheme(table.color);
 
   useEffect(() => {
     if (isLocked) {
       setIsEditingName(false);
       setIsAddingCol(false);
+      setIsColorOpen(false);
     }
   }, [isLocked]);
+
+  useEffect(() => {
+    if (!isColorOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (colorPopoverRef.current && !colorPopoverRef.current.contains(e.target as Node)) {
+        setIsColorOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isColorOpen]);
 
   const handleSaveTableName = () => {
     if (isLocked) return;
@@ -39,6 +58,19 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
       onUpdateTable(id, { ...table, name: trimmed, id: trimmed });
     }
     setIsEditingName(false);
+  };
+
+  const handleSelectColor = (colorKey: TableColorKey) => {
+    if (isLocked) return;
+    const nextColor = colorKey === 'emerald' ? undefined : colorKey;
+    const updated = { ...table };
+    if (nextColor) {
+      updated.color = nextColor;
+    } else {
+      delete updated.color;
+    }
+    onUpdateTable(id, updated);
+    setIsColorOpen(false);
   };
 
   const handleAddColumn = () => {
@@ -90,11 +122,39 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
   };
 
   return (
-    <div className="group min-w-[240px] max-w-[320px] rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/60 transition-all duration-200 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/10">
+    <div
+      data-testid={`table-node-${table.name}`}
+      data-table-color={colorTheme.key}
+      className={`group relative min-w-[240px] max-w-[320px] rounded-xl border bg-white transition-all duration-200 hover:shadow-lg ${
+        isHighlighted
+          ? 'border-emerald-500 ring-4 ring-emerald-500/30 shadow-xl shadow-emerald-500/20 scale-[1.02]'
+          : `border-slate-200 shadow-md shadow-slate-200/60 ${colorTheme.cardHoverClass}`
+      }`}
+    >
+      {/* Top Color Accent Strip */}
+      <div
+        className="h-1.5 w-full rounded-t-[11px]"
+        style={{ backgroundColor: colorTheme.hex }}
+      />
+
       {/* Table Header */}
-      <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-emerald-50/70 via-slate-50 to-teal-50/50 px-3.5 py-2.5 rounded-t-xl">
+      <div
+        className={`relative flex items-center justify-between border-b bg-gradient-to-r px-3.5 py-2 ${colorTheme.headerClass}`}
+      >
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="h-2.5 w-2.5 rounded-full bg-emerald-600 ring-2 ring-emerald-500/20" />
+          <button
+            type="button"
+            disabled={isLocked}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isLocked) setIsColorOpen((prev) => !prev);
+            }}
+            className={`nodrag h-3 w-3 rounded-full ring-2 shrink-0 transition-transform ${
+              colorTheme.dotClass
+            } ${isLocked ? 'cursor-default' : 'cursor-pointer hover:scale-125'}`}
+            title={isLocked ? `${colorTheme.label} table` : 'Change table color'}
+            aria-label="Change table color"
+          />
           {isEditingName && !isLocked ? (
             <div className="flex items-center gap-1 flex-1">
               <input
@@ -102,12 +162,12 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
                 value={tableNameInput}
                 onChange={(e) => setTableNameInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSaveTableName()}
-                className="w-full rounded bg-white px-2 py-0.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 border border-slate-300"
+                className="nodrag w-full rounded bg-white px-2 py-0.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 border border-slate-300"
                 autoFocus
               />
               <button
                 onClick={handleSaveTableName}
-                className="p-1 text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                className="nodrag p-1 text-emerald-600 hover:text-emerald-700 cursor-pointer"
                 title="Save"
               >
                 <FontAwesomeIcon icon={faCheck} className="h-3 w-3" />
@@ -125,27 +185,74 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
               {!isLocked && (
                 <FontAwesomeIcon
                   icon={faPen}
-                  className="h-2.5 w-2.5 text-slate-400 opacity-0 group-hover/title:opacity-100 transition-opacity"
+                  className="export-ignore h-2.5 w-2.5 text-slate-400 opacity-0 group-hover/title:opacity-100 transition-opacity"
                 />
               )}
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 ml-2">
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 border border-slate-200">
+        <div className="flex items-center gap-1 ml-2">
+          <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium text-slate-600 border border-slate-200/80">
             {table.columns.length}
           </span>
           {!isLocked && (
-            <button
-              onClick={() => onDeleteTable(id)}
-              className="text-slate-400 hover:text-rose-600 transition-colors p-1 cursor-pointer"
-              title="Delete table"
-            >
-              <FontAwesomeIcon icon={faTrashCan} className="h-3 w-3" />
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsColorOpen((prev) => !prev);
+                }}
+                className="nodrag export-ignore text-slate-400 hover:text-slate-700 transition-colors p-1 cursor-pointer"
+                title="Table color palette"
+              >
+                <FontAwesomeIcon icon={faPalette} className="h-3 w-3" />
+              </button>
+              <button
+                onClick={() => onDeleteTable(id)}
+                className="nodrag export-ignore text-slate-400 hover:text-rose-600 transition-colors p-1 cursor-pointer"
+                title="Delete table"
+              >
+                <FontAwesomeIcon icon={faTrashCan} className="h-3 w-3" />
+              </button>
+            </>
           )}
         </div>
+
+        {/* Color Swatch Picker Popover */}
+        {isColorOpen && !isLocked && (
+          <div
+            ref={colorPopoverRef}
+            role="menu"
+            aria-label="Table color options"
+            className="nodrag export-ignore absolute right-2 top-full mt-1.5 z-40 flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-2 shadow-xl"
+          >
+            {TABLE_COLOR_PALETTE.map((swatch) => {
+              const isActive = colorTheme.key === swatch.key;
+              return (
+                <button
+                  key={swatch.key}
+                  type="button"
+                  role="menuitem"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSelectColor(swatch.key);
+                  }}
+                  title={`Color: ${swatch.label}`}
+                  aria-label={`Color: ${swatch.label}`}
+                  className={`flex h-5 w-5 items-center justify-center rounded-full transition-transform cursor-pointer hover:scale-115 ${
+                    swatch.swatchClass
+                  } ${isActive ? 'ring-2 ring-offset-1 ring-slate-800 scale-110' : ''}`}
+                >
+                  {isActive && (
+                    <FontAwesomeIcon icon={faCheck} className="h-2.5 w-2.5 text-white" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Columns List */}
@@ -209,7 +316,7 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
                 {!isLocked && (
                   <button
                     onClick={() => handleDeleteColumn(col.name)}
-                    className="opacity-0 group-hover/row:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 cursor-pointer"
+                    className="nodrag export-ignore opacity-0 group-hover/row:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 cursor-pointer"
                     title="Remove column"
                   >
                     <FontAwesomeIcon icon={faXmark} className="h-2.5 w-2.5" />
@@ -236,7 +343,7 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
       {/* Add Column Expandable Form */}
       {!isLocked && (
         isAddingCol ? (
-          <div className="border-t border-slate-200 bg-slate-50/80 p-2.5 space-y-2 rounded-b-xl">
+          <div className="nodrag export-ignore border-t border-slate-200 bg-slate-50/80 p-2.5 space-y-2 rounded-b-xl">
             <div className="flex gap-1.5">
               <input
                 type="text"
@@ -281,7 +388,7 @@ export const TableNode: React.FC<NodeProps> = ({ id, data }) => {
             </div>
           </div>
         ) : (
-          <div className="border-t border-slate-100 p-1.5 rounded-b-xl bg-slate-50/40">
+          <div className="nodrag export-ignore border-t border-slate-100 p-1.5 rounded-b-xl bg-slate-50/40">
             <button
               onClick={() => setIsAddingCol(true)}
               className="flex w-full items-center justify-center gap-1.5 rounded-lg py-1 text-[11px] font-medium text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors cursor-pointer"

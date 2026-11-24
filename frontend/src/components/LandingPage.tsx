@@ -86,8 +86,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
 
           {/* Subheading */}
           <p className="mx-auto mt-5 max-w-2xl text-base text-slate-600 sm:text-lg leading-relaxed">
-            Write tables and columns in simple shorthand. Generate clean interactive diagrams,
-            arrange nodes with automatic layout, connect foreign keys, and export SQL DDL.
+            Write tables and columns in simple shorthand. Color-code table groups, search large
+            schemas with Cmd+K, and export SQL, Prisma, DBML, Mermaid, or high-res PNG &amp; SVG.
           </p>
 
           {/* Hero CTAs */}
@@ -311,11 +311,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                 <FontAwesomeIcon icon={faHandPointer} className="text-base" />
               </div>
               <h3 className="text-sm font-bold text-slate-900 mb-1.5">
-                Interactive Canvas
+                Color-Coded Interactive Canvas
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Drag tables freely across the screen. Connect foreign key handles between columns,
-                rename tables inline, or add columns directly on cards.
+                Color-code domain tables with custom palette headers, connect foreign key handles,
+                rename inline, and jump to any table or column instantly with Cmd+K search.
               </p>
             </div>
 
@@ -325,11 +325,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                 <FontAwesomeIcon icon={faLayerGroup} className="text-base" />
               </div>
               <h3 className="text-sm font-bold text-slate-900 mb-1.5">
-                Dagre Auto-Layout
+                Auto-Layout &amp; PNG/SVG Snapshots
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                With one click, arrange all tables and relations in a clean hierarchical layout
-                to untangle overlapping connections.
+                Untangle complex schemas with one-click Dagre auto-layout, then export crisp
+                2x/3x Retina PNG or vector SVG snapshots for documentation and specs.
               </p>
             </div>
 
@@ -339,11 +339,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                 <FontAwesomeIcon icon={faFileExport} className="text-base" />
               </div>
               <h3 className="text-sm font-bold text-slate-900 mb-1.5">
-                SQL DDL Export
+                SQL, Prisma, DBML &amp; Mermaid
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Export standard SQL for PostgreSQL, MySQL, and SQLite. Copy directly or
-                download a ready-to-run `.sql` file.
+                Export production-ready PostgreSQL, MySQL, SQLite, Prisma schemas, DBML, and
+                Mermaid ERDs in one click.
               </p>
             </div>
 
@@ -367,7 +367,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                 <FontAwesomeIcon icon={faShieldHalved} className="text-base" />
               </div>
               <h3 className="text-sm font-bold text-slate-900 mb-1.5">
-                Private & Client-Side
+                Private &amp; Client-Side
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
                 Drafts are processed right in your browser. No mandatory user accounts,
@@ -410,16 +410,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                   <td className="py-3 px-4 text-slate-500">Sign-up / login often required</td>
                 </tr>
                 <tr>
-                  <td className="py-3 px-4 font-medium">Text & Visual Editing</td>
+                  <td className="py-3 px-4 font-medium">Text &amp; Visual Editing</td>
                   <td className="py-3 px-4 font-semibold text-green-700 bg-green-50/30">
-                    Both shorthand text & canvas editing
+                    Two-way shorthand, color coding &amp; Cmd+K search
                   </td>
                   <td className="py-3 px-4 text-slate-500">Often text-only or drag-and-drop only</td>
                 </tr>
                 <tr>
-                  <td className="py-3 px-4 font-medium">SQL Export / Import</td>
+                  <td className="py-3 px-4 font-medium">Schema &amp; Image Export</td>
                   <td className="py-3 px-4 font-semibold text-green-700 bg-green-50/30">
-                    Included (Postgres, MySQL, SQLite)
+                    SQL, Prisma, DBML, Mermaid, PNG &amp; SVG
                   </td>
                   <td className="py-3 px-4 text-slate-500">Frequently restricted or paid</td>
                 </tr>

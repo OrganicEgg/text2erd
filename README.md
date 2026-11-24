@@ -31,35 +31,38 @@ Most online database visualizers force you through a grueling funnel:
 
 ## ✨ Features
 
-- **⚡ Instant Shorthand Drafting**: Write intuitive table definitions without boilerplate:
+- **⚡ Instant Shorthand Drafting & Color Coding**: Write intuitive table definitions with optional `[color: ...]` domain tags:
   ```text
-  users
+  users [color: blue]
     id int pk
     email varchar(255) unique not null
     name varchar(100)
     created_at timestamp
 
-  posts
+  posts [color: amber]
     id int pk
     user_id int -> users.id
     title varchar(200) not null
     content text
   ```
-- **🖱️ Interactive Drag & Drop Canvas**: Powered by `@xyflow/react` (React Flow). Drag tables anywhere on an infinite dot-grid canvas.
+- **🖱️ Interactive Drag & Drop Canvas**: Powered by `@xyflow/react` (React Flow v12). Drag tables anywhere on an infinite dot-grid canvas, or freeze layout with **Canvas Lock**.
+- **🎨 Table Color Coding**: Pick from 8 curated color palettes directly on table cards (with automatic two-way sync to shorthand draft, `#draft` share links, DBML `headercolor`, and MiniMap).
+- **🔍 Quick Search & Table Filter (`Cmd+K` / `Ctrl+K`)**: Instant command palette to search tables, columns, and data types, filter by color group, and auto-focus + highlight target tables on the canvas.
+- **🖼️ High-Res PNG & Vector SVG Export**: Capture crisp 2x/3x Retina `.png` or scalable `.svg` diagram snapshots (with Light, Clean White, or Transparent backgrounds) for PRs, RFCs, and docs.
+- **📤 Multi-Format Schema Export**: Export clean **PostgreSQL**, **MySQL**, **SQLite**, **Prisma** (`schema.prisma`), **DBML** (`schema.dbml`), and **Mermaid ERD** (`erDiagram`).
 - **🔗 Visual Column-to-Column Linking**: Drag a connection line directly from `posts.user_id` to `users.id` to establish foreign key constraints visually.
 - **🛠️ Direct Canvas Editing**: Click to rename tables inline, add new columns with types and primary key toggles, or delete tables.
 - **🪄 1-Click Auto-Layout**: Integrated `dagre` algorithm to automatically untangle and arrange complex diagrams neatly.
 - **📥 SQL DDL File & Text Import**: Upload `.sql` / `.ddl` files via drag-and-drop or paste standard `CREATE TABLE` and `ALTER TABLE` statements (with built-in 500 KB file size and 150-table guardrails).
-- **📤 Dialect-Specific SQL Export**: Formats clean, production-ready DDL for **PostgreSQL**, **MySQL**, and **SQLite**.
 - **📱 Mobile-Responsive Studio**: Seamless segmented switcher between the **Draft Editor** and **Diagram Canvas** on phones and tablets.
-- **📋 Starter Templates**: 1-click presets for *E-Commerce*, *Blog & Social*, and *Project Management*.
+- **📋 Starter Templates**: 1-click presets for *E-Commerce*, *Blog & Social*, *Project Management*, *SaaS & Billing*, and *FinTech & Ledger*.
 
 ---
 
 ## 🏗️ Architecture
 
-- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS, `@xyflow/react` (React Flow v12), `dagre`, `@fortawesome/react-fontawesome`.
-- **Backend**: Python 3.11+, Django 5.2, Django REST Framework, `sqlparse`, `django-cors-headers` (with 100% client-side parser fallback for zero-backend static hosting on Vercel).
+- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS, `@xyflow/react` (React Flow v12), `dagre`, `html-to-image`, `@fortawesome/react-fontawesome`.
+- **Backend**: Python 3.11+, Django 5.2, Django REST Framework, `sqlparse`, `django-cors-headers` (with 100% client-side parser & exporter fallback for zero-backend static hosting on Vercel).
 - **Stateless & Protected Design**: The backend runs purely in-memory (`DATABASES = :memory:`) with IP-based rate limiting (`AnonRateThrottle`) and payload/table size caps to protect public deployments.
 
 ---

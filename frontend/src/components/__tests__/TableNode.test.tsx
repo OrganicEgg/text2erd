@@ -141,4 +141,50 @@ describe('TableNode component lock/unlock behavior', () => {
     expect(screen.queryByDisplayValue('users')).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText('column_name')).not.toBeInTheDocument();
   });
+
+  it('opens table color palette and updates table color when unlocked', () => {
+    const onUpdateTable = vi.fn();
+    renderTableNode(false, onUpdateTable);
+
+    const paletteBtn = screen.getByTitle('Table color palette');
+    fireEvent.click(paletteBtn);
+
+    const blueSwatch = screen.getByRole('menuitem', { name: 'Color: Blue' });
+    fireEvent.click(blueSwatch);
+
+    expect(onUpdateTable).toHaveBeenCalledWith('users', {
+      ...sampleTable,
+      color: 'blue',
+    });
+  });
+
+  it('renders custom table color and search highlight state accurately', () => {
+    const props = {
+      id: 'users',
+      type: 'tableNode',
+      data: {
+        table: { ...sampleTable, color: 'amber' as const },
+        onUpdateTable: vi.fn(),
+        onDeleteTable: vi.fn(),
+        isLocked: false,
+        isHighlighted: true,
+      },
+      selected: false,
+      isConnectable: true,
+      zIndex: 1,
+      positionAbsoluteX: 0,
+      positionAbsoluteY: 0,
+      dragging: false,
+    };
+
+    render(
+      <ReactFlowProvider>
+        <TableNode {...(props as any)} />
+      </ReactFlowProvider>
+    );
+
+    const card = screen.getByTestId('table-node-users');
+    expect(card).toHaveAttribute('data-table-color', 'amber');
+    expect(card.className).toContain('ring-4');
+  });
 });

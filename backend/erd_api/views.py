@@ -2,7 +2,13 @@ from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .parser import parse_draft_text, parse_sql_ddl, generate_sql_ddl
+from .parser import (
+    parse_draft_text,
+    parse_sql_ddl,
+    generate_sql_ddl,
+    generate_prisma_schema,
+    generate_dbml_schema,
+)
 
 
 class HealthCheckView(APIView):
@@ -118,7 +124,13 @@ class ExportSqlView(APIView):
             )
 
         try:
-            sql_output = generate_sql_ddl(tables, relationships, dialect)
-            return Response({"sql": sql_output, "dialect": dialect}, status=status.HTTP_200_OK)
+            dialect_lower = str(dialect).lower()
+            if dialect_lower == "prisma":
+                output = generate_prisma_schema(tables, relationships)
+            elif dialect_lower == "dbml":
+                output = generate_dbml_schema(tables, relationships)
+            else:
+                output = generate_sql_ddl(tables, relationships, dialect_lower)
+            return Response({"sql": output, "dialect": dialect_lower}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({"error": f"Failed to generate SQL: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": f"Failed to generate schema: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)

@@ -61,6 +61,24 @@ describe('Navbar component', () => {
     expect(screen.getByText('Unlock')).toBeInTheDocument();
   });
 
+  it('triggers onOpenSearch and onOpenImageExport when v1.1 toolbar buttons are clicked', () => {
+    const onOpenSearch = vi.fn();
+    const onOpenImageExport = vi.fn();
+    render(
+      <Navbar
+        {...defaultProps}
+        onOpenSearch={onOpenSearch}
+        onOpenImageExport={onOpenImageExport}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle(/Quick search tables/i));
+    expect(onOpenSearch).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByTitle(/Export high-resolution PNG or SVG/i));
+    expect(onOpenImageExport).toHaveBeenCalledTimes(1);
+  });
+
   it('does NOT contain any github link or repository reference', () => {
     const { container } = render(<Navbar {...defaultProps} />);
     const links = container.querySelectorAll('a');
